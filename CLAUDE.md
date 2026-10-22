@@ -17,7 +17,7 @@
 - `graphify-out/` — Граф для Cloud по ведению проетов
 - `project_osm_map/` — Android-приложение с картой OpenStreetMap (osmdroid, без ключа API)
   - сборка: Android Studio → Build → Build APK(s), или `gradlew assembleDebug`
-  - AGP 9.4.0, Gradle 9.6.0, compileSdk/targetSdk 37, minSdk 24, Kotlin (встроенный в AGP 9)
+  - AGP 9.4.0, Gradle 9.8.2, compileSdk/targetSdk 37, minSdk 24, Kotlin (встроенный в AGP 9)
 
 
 ## Договорённости
