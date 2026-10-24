@@ -1,4 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">OSM Карта</string>
+
+    <!-- Локальный API над mp_service (модуль server/). Порт пробрасывается на компьютер разработчика
+         командой `adb reverse tcp:8080 tcp:8080` - работает и в эмуляторе, и на телефоне по USB.
+         Адрес 10.0.2.2 приложение с targetSdk 37 не открывает: это частная сеть, нужен доступ к локальной сети. -->
+    <string name="api_base_url" translatable="false">http://127.0.0.1:8080</string>
+    <!-- Сделка из тестовых данных: кейс A/B/C/D, парковка в Алматы -->
+    <integer name="demo_deal_id">6</integer>
+
+    <string name="osm_attribution">© участники OpenStreetMap</string>
+    <string name="loading">Загрузка сделки…</string>
+    <string name="api_error">Нет связи с API %1$s: %2$s\nНажмите, чтобы повторить</string>
+    <string name="deal_header">%1$s · %2$s · откликов: %3$d</string>
+    <string name="offer_row">%1$d. %2$s\n%3$s</string>
+    <string name="distance_m">%.0f м</string>
+    <string name="point_exact">точная точка</string>
+    <string name="point_approx">примерная точка</string>
+    <string name="client_point">Вы здесь</string>
+    <string name="agree">Согласовать</string>
+    <string name="status_offers">есть отклики</string>
+    <string name="status_agreed">согласована</string>
+    <string name="status_contact">контакт</string>
+    <string name="status_closed">закрыта</string>
 </resources>

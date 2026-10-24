@@ -1,14 +1,74 @@
 {
   "CLAUDE.md": {
-    "mtime": 1792416658.540486,
-    "seen": 1792494501.9639337,
-    "ast_hash": "bc1ebc982b34972392e217c7d9b74320",
-    "semantic_hash": ""
+    "mtime": 1792862523.2511935,
+    "seen": 1792862813.4647233,
+    "ast_hash": "545c08ecc6cccddc9f0359753e796752",
+    "semantic_hash": "545c08ecc6cccddc9f0359753e796752"
   },
-  "project_parking/data.txt": {
-    "mtime": 1792413188.0591106,
-    "seen": 1792494501.9639337,
-    "ast_hash": "6cb46753d21e58d4dfd4619d5cc487aa",
-    "semantic_hash": ""
+  "project_osm_map/app/build.gradle.kts": {
+    "mtime": 1792862239.1601593,
+    "seen": 1792862813.4647233,
+    "ast_hash": "a3b5af14da24b59c359864cf1a957fdd",
+    "semantic_hash": "a3b5af14da24b59c359864cf1a957fdd"
+  },
+  "project_osm_map/app/src/main/java/ru/mpavel/osmmap/ApiClient.kt": {
+    "mtime": 1792862238.6807935,
+    "seen": 1792862813.4647233,
+    "ast_hash": "4298769e2cfe33e6a3d53245607979e5",
+    "semantic_hash": "4298769e2cfe33e6a3d53245607979e5"
+  },
+  "project_osm_map/app/src/main/java/ru/mpavel/osmmap/MainActivity.kt": {
+    "mtime": 1792862462.274083,
+    "seen": 1792862813.4647233,
+    "ast_hash": "e14591d7ac89f957f71af68e0b7250d3",
+    "semantic_hash": "e14591d7ac89f957f71af68e0b7250d3"
+  },
+  "project_osm_map/build.gradle.kts": {
+    "mtime": 1792671977.8918397,
+    "seen": 1792862813.4647233,
+    "ast_hash": "98aff6f07e58bb754bd1cc6da48c64a6",
+    "semantic_hash": "98aff6f07e58bb754bd1cc6da48c64a6"
+  },
+  "project_osm_map/gradlew": {
+    "mtime": 1792672064.5470195,
+    "seen": 1792862813.4647233,
+    "ast_hash": "a43be8432bac3ffd05b3769aa42fe996",
+    "semantic_hash": "a43be8432bac3ffd05b3769aa42fe996"
+  },
+  "project_osm_map/server/build.gradle.kts": {
+    "mtime": 1792862095.9890425,
+    "seen": 1792862813.4647233,
+    "ast_hash": "83a4a1b38778b9b5179e80bec630d55c",
+    "semantic_hash": "83a4a1b38778b9b5179e80bec630d55c"
+  },
+  "project_osm_map/server/src/main/java/ru/mpavel/osmmap/server/ApiServer.java": {
+    "mtime": 1792862096.0831132,
+    "seen": 1792862813.4647233,
+    "ast_hash": "0b42b4a1dc4295707cb3a74cf7c1a9d2",
+    "semantic_hash": "0b42b4a1dc4295707cb3a74cf7c1a9d2"
+  },
+  "project_osm_map/settings.gradle.kts": {
+    "mtime": 1792862096.1747062,
+    "seen": 1792862813.4647233,
+    "ast_hash": "f5ea6348b8f774cfebae7e9c24fa4d67",
+    "semantic_hash": "f5ea6348b8f774cfebae7e9c24fa4d67"
+  },
+  "project_osm_map/README.md": {
+    "mtime": 1792862522.9735434,
+    "seen": 1792862813.4647233,
+    "ast_hash": "9862a7a01cabbab28f004b0fa25f1f3b",
+    "semantic_hash": "9862a7a01cabbab28f004b0fa25f1f3b"
+  },
+  "project_osm_map/docs/TZ_marketplace.md": {
+    "mtime": 1792862534.8093543,
+    "seen": 1792862813.4647233,
+    "ast_hash": "b985f1aabfa574cc153d4b2e98da76cf",
+    "semantic_hash": "b985f1aabfa574cc153d4b2e98da76cf"
+  },
+  "project_osm_map/db/mp_service.sql": {
+    "mtime": 1792862494.847076,
+    "seen": 1792862813.4647233,
+    "ast_hash": "cdf7f0d7ec39ca08145e92c4b30c0615",
+    "semantic_hash": "cdf7f0d7ec39ca08145e92c4b30c0615"
   }
 }

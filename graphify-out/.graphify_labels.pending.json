@@ -1,3 +1,15 @@
 {
-  "0": "CLAUDE.md"
+  "0": "CLAUDE.md",
+  "1": "ApiServer.java",
+  "2": "ТЗ: платформа-маркетплейс услуг",
+  "3": "MainActivity.kt",
+  "4": "ApiClient",
+  "5": "MainActivity",
+  "6": "OSM Карта — экран сделки маркетплейса услуг",
+  "7": "Процесс сделки",
+  "8": "gradlew",
+  "9": "app/build.gradle.kts",
+  "10": "project_osm_map/build.gradle.kts",
+  "11": "server/build.gradle.kts",
+  "12": "settings.gradle.kts"
 }

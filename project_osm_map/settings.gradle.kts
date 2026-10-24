@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "OsmMap"
 include(":app")
+include(":server")
