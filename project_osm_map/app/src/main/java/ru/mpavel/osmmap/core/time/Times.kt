@@ -1,9 +1,17 @@
 package ru.mpavel.osmmap.core.time
 
+import java.time.Clock
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-// Время API - ISO 8601 локальное без зоны: 2026-10-24T18:00:00 (ТЗ 4).
+// Время API - ISO 8601 без зоны: 2026-10-24T18:00:00 (ТЗ 4), по Алматы независимо от пояса устройства (Р-4).
+
+/** Пояс времени API. */
+val MP_ZONE: ZoneId = ZoneId.of("Asia/Almaty")
+
+/** "Сейчас" по времени API; [clock] - для тестов. */
+fun nowMp(clock: Clock = Clock.systemUTC()): LocalDateTime = LocalDateTime.now(clock.withZone(MP_ZONE))
 
 private val SHORT = DateTimeFormatter.ofPattern("dd.MM HH:mm")
 private val TIME = DateTimeFormatter.ofPattern("HH:mm")

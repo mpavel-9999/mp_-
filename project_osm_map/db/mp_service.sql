@@ -1247,6 +1247,36 @@ BEGIN
 END
 $$;
 
+-- Период запроса и публикации: не в прошлом, конец позже начала (Р-4)
+CREATE FUNCTION trg_period_check()
+RETURNS trigger LANGUAGE plpgsql SET search_path = mp_service AS $$
+    -- Что делает: Триггер BEFORE INSERT на deal и provider_slot: период, который создает агент, не в прошлом (Р-4).
+    -- Методика: Проверяются только вставки от агента (mp.agent_id задан, не загрузка данных); now() - в поясе сессии Asia/Almaty, как и время API.
+    -- Запрос (deal) - начало не раньше now() - 1 мин (запас на задержку между формой и отправкой), иначе он сразу истек бы (п. 5.5);
+    -- публикация (provider_slot) - окно еще не закончилось: место может быть свободно уже сейчас (п. 4.1).
+    -- Конец не позже начала - PERIOD_INVALID (раньше ограничения CHECK, чтобы код был понятен приложению).
+BEGIN
+    IF is_load_mode() OR session_agent_id() IS NULL THEN RETURN NEW; END IF;
+    IF NEW.period_end <= NEW.period_start THEN
+        RAISE EXCEPTION 'Окончание периода должно быть позже начала' USING HINT = 'PERIOD_INVALID';
+    END IF;
+    IF TG_TABLE_NAME = 'deal' AND NEW.period_start < now()::timestamp - interval '1 minute' THEN
+        RAISE EXCEPTION 'Начало периода % уже прошло (сейчас %)', NEW.period_start, date_trunc('minute', now()::timestamp)
+            USING HINT = 'PERIOD_IN_PAST';
+    END IF;
+    IF TG_TABLE_NAME = 'provider_slot' AND NEW.period_end <= now()::timestamp THEN
+        RAISE EXCEPTION 'Окно % уже закончилось (сейчас %)', NEW.period_end, date_trunc('minute', now()::timestamp)
+            USING HINT = 'PERIOD_IN_PAST';
+    END IF;
+    RETURN NEW;
+END
+$$;
+
+CREATE TRIGGER trg_deal_period BEFORE INSERT ON deal
+    FOR EACH ROW EXECUTE FUNCTION trg_period_check();
+CREATE TRIGGER trg_provider_slot_period BEFORE INSERT ON provider_slot
+    FOR EACH ROW EXECUTE FUNCTION trg_period_check();
+
 CREATE TRIGGER trg_deal_offer_check BEFORE INSERT ON deal_offer
     FOR EACH ROW EXECUTE FUNCTION trg_deal_offer_check();
 CREATE TRIGGER trg_deal_offer_after AFTER INSERT ON deal_offer
@@ -2247,6 +2277,7 @@ BEGIN
     ('trg_deal_status_check', 'Триггер BEFORE на deal: допустимость перехода статуса и служебные поля (П-1). Новая сделка - только INIT; переход ищется в DEAL_TRANSITION, исполнитель сверяется с mp.agent_id; закрытие гео-услуги - только из CONTACT; причина обязательна для отмен со штрафом; при AGREED - дата и секрет кода закрытия; финальный статус - дата закрытия.'),
     ('trg_deal_status_log', 'Триггер AFTER на deal: история статусов и уведомления сторонам. Пишет deal_status_log с автором и причиной из параметров сессии; по новому статусу рассылает уведомления (запрос кандидатам, согласование, сближение, баллы, истечение, отмена).'),
     ('trg_deal_offer_check', 'Триггер BEFORE на deal_offer: повторная проверка условий подбора и цены отклика (П-2). Вызывает provider_can_offer с точкой отклика; проверяет цену в пределах настроек поставщика (для км - не ниже порога); отклик получает статус active.'),
+    ('trg_period_check', 'Триггер BEFORE INSERT на deal и provider_slot: период, который создает агент, не в прошлом (Р-4). Проверяются только вставки от агента (mp.agent_id задан, не загрузка данных); now() - в поясе сессии Asia/Almaty, как и время API. Запрос - начало не раньше now() - 1 мин, иначе PERIOD_IN_PAST; публикация - окно еще не закончилось (место может быть свободно уже сейчас), иначе PERIOD_IN_PAST; конец не позже начала - PERIOD_INVALID.'),
     ('trg_deal_offer_after', 'Триггер AFTER на deal_offer: первый отклик переводит сделку в OFFERS, клиенту уведомление. Обновляет статус MATCHING -> OFFERS и создает уведомление NEW_OFFER.'),
     ('trg_deal_review_check', 'Триггер BEFORE на deal_review: баллы только сторонами друг другу и только после закрытия или отмены. Проверяет статус сделки и участников, роль оцениваемого проставляет сам.'),
     ('trg_agent_testing_check', 'Триггер на agent: режим тестирования только для роли ADMIN. При is_testing = 1 проверяет наличие активной роли ADMIN.'),
@@ -2593,7 +2624,11 @@ INSERT INTO g_src VALUES
 (50111,'ui.err.busy',                NULL,'Поставщик уже занят на это время','The provider is busy at this time',NULL),
 (50112,'ui.err.routing_unavailable', NULL,'Маршруты временно недоступны','Routing is temporarily unavailable',NULL),
 (50113,'ui.err.no_route',            NULL,'Не удалось построить маршрут','Could not build a route',NULL),
-(50114,'ui.err.rule',                NULL,'Действие сейчас недоступно','This action is not available now',NULL);
+(50114,'ui.err.rule',                NULL,'Действие сейчас недоступно','This action is not available now',NULL),
+-- Э5: время по Алматы (Р-4)
+(50115,'ui.err.period_in_past',      NULL,'Начало периода уже прошло - выберите время позже','The start time has already passed - choose a later time',NULL),
+(50116,'ui.err.period_invalid',      NULL,'Окончание должно быть позже начала','The end must be after the start',NULL),
+(50117,'ui.time_almaty',             25,'Время - по Алматы','Times are in Almaty time',NULL);
 
 INSERT INTO glossary (glossary_id, glossary_code, icon_id) SELECT id, code, icon FROM g_src;
 INSERT INTO glossary_text (glossary_id, interface_lang_id, text_value, search_text)

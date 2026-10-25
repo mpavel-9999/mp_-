@@ -14,6 +14,7 @@ import ru.mpavel.osmmap.core.geo.decodePolyline
 import ru.mpavel.osmmap.core.net.ApiError
 import ru.mpavel.osmmap.core.net.AppError
 import ru.mpavel.osmmap.core.time.defaultPeriod
+import ru.mpavel.osmmap.core.time.nowMp
 import ru.mpavel.osmmap.core.time.parseServerTime
 import ru.mpavel.osmmap.core.time.toServerTime
 import ru.mpavel.osmmap.data.AttrValue
@@ -47,8 +48,8 @@ data class RequestState(
     val pickup: LatLon? = null,
     val dest: LatLon? = null,
     val routeTarget: RouteTarget = RouteTarget.PICKUP,
-    val start: LocalDateTime = defaultPeriod(LocalDateTime.now()).first,
-    val end: LocalDateTime = defaultPeriod(LocalDateTime.now()).second,
+    val start: LocalDateTime = defaultPeriod(nowMp()).first,
+    val end: LocalDateTime = defaultPeriod(nowMp()).second,
     val radiusM: Int = DEFAULT_RADIUS_M,
     val ratingMin: Double? = null,
     val fields: List<FormField> = emptyList(),
@@ -118,8 +119,8 @@ class RequestViewModel(
                         val start = parseServerTime(slot.periodStart)
                         val end = parseServerTime(slot.periodEnd)
                         next = next.copy(point = LatLon(slot.lat, slot.lon), pickup = LatLon(slot.lat, slot.lon))
-                        if (start != null && end != null && end.isAfter(LocalDateTime.now())) {
-                            val from = maxOf(start, defaultPeriod(LocalDateTime.now()).first)
+                        if (start != null && end != null && end.isAfter(nowMp())) {
+                            val from = maxOf(start, defaultPeriod(nowMp()).first)
                             next = next.copy(start = from, end = minOf(end, from.plusHours(1)).takeIf { it.isAfter(from) } ?: from.plusHours(1))
                         }
                     }

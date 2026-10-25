@@ -10,6 +10,7 @@ import ru.mpavel.osmmap.core.net.ApiError
 import ru.mpavel.osmmap.core.net.decodeBody
 import ru.mpavel.osmmap.core.time.defaultPeriod
 import ru.mpavel.osmmap.core.time.formatPeriod
+import ru.mpavel.osmmap.core.time.nowMp
 import ru.mpavel.osmmap.core.time.parseServerTime
 import ru.mpavel.osmmap.core.time.toServerTime
 import ru.mpavel.osmmap.data.Forecast
@@ -20,7 +21,13 @@ import ru.mpavel.osmmap.feature.request.invalidFields
 import ru.mpavel.osmmap.ui.common.apiErrorText
 import ru.mpavel.osmmap.ui.common.errorKey
 import ru.mpavel.osmmap.ui.map.LatLon
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.util.TimeZone
 import kotlin.math.abs
 
 /** Логика экранов клиента (Э4) без Android: маршрут, время периода, ошибки по коду, тело запроса. */
@@ -61,6 +68,22 @@ class ClientFlowTest {
         assertEquals(LocalDateTime.of(2026, 10, 24, 18, 0), parseServerTime("2026-10-24 18:00:00"))
         assertNull(parseServerTime("вчера"))
         assertEquals("24.10 18:00–19:30", formatPeriod(LocalDateTime.of(2026, 10, 24, 18, 0), LocalDateTime.of(2026, 10, 24, 19, 30)))
+    }
+
+    @Test
+    fun nowIsAlmatyWhateverDeviceZone() {
+        // Р-4: устройство в UTC (как эмулятор по умолчанию) - "сейчас" для API всё равно по Алматы (UTC+5)
+        val saved = TimeZone.getDefault()
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+            val clock = Clock.fixed(Instant.parse("2026-10-25T20:00:00Z"), ZoneOffset.UTC)
+            assertEquals(LocalDateTime.of(2026, 10, 26, 1, 0), nowMp(clock))
+            assertEquals(LocalDateTime.of(2026, 10, 26, 1, 30), defaultPeriod(nowMp(clock)).first)
+            val drift = Duration.between(LocalDateTime.now(ZoneId.of("Asia/Almaty")), nowMp()).abs()
+            assertTrue("расхождение $drift", drift.seconds < 5)
+        } finally {
+            TimeZone.setDefault(saved)
+        }
     }
 
     @Test

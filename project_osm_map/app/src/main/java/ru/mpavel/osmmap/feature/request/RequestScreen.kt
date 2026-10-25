@@ -177,6 +177,8 @@ fun WhenBlock(state: RequestState, actions: RequestActions) {
             DateTimeField(t("ui.period_from"), state.start, actions.vm::setStart, Modifier.weight(1f))
             DateTimeField(t("ui.period_to"), state.end, actions.vm::setEnd, Modifier.weight(1f))
         }
+        // время API - по Алматы, не по поясу устройства (Р-4)
+        Text(t("ui.time_almaty"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (state.showRadius) {
             Text("${t("ui.radius")}: ${state.radiusM} ${t("ui.unit_m")}", style = MaterialTheme.typography.bodyMedium)
             Slider(

@@ -10,6 +10,9 @@ info:
 
     **Язык.** `Accept-Language: RUS|ENG|KAZ|DEU`; без заголовка — язык агента, иначе русский.
 
+    **Время.** ISO 8601 без смещения (`2026-10-24T18:00:00`) — время Алматы (`Asia/Almaty`, UTC+5), независимо от пояса устройства (Р-4).
+    Сессия БД работает в том же поясе; запрос и публикация с началом раньше «сейчас − 1 мин» отклоняются (422 `PERIOD_IN_PAST`).
+
     **Ошибки.** Тело всегда `{"error": "текст", "code": "КОД"}`:
     - 400 `BAD_REQUEST` — неверные данные или нарушено ограничение БД; также `REQUIRED_FIELDS`, `BAD_SCHEME`, `BAD_LANG`;
     - 401 `UNAUTHORIZED` (нет входа), `LOGIN_FAILED`;
@@ -19,7 +22,7 @@ info:
       причины `provider_can_offer`: `NO_DEAL`, `DEAL_NOT_OPEN`, `OWN_DEAL`, `NO_SERVICE_ACCESS`, `BLOCKED`, `NO_SLOT`,
       `OUT_OF_CLIENT_ZONE`, `OUT_OF_PROVIDER_ZONE`, `WORK_TIME`, `CLIENT_RATING`, `PROVIDER_RATING`, `PRICE_RANGE`,
       `REVIEW_REQUIRED`), иначе `RULE`; дубль — `DUPLICATE`; а также `REVIEW_REQUIRED`, `NOT_ON_THE_WAY`, `DEAL_NOT_CLOSABLE`;
-    - 422 `CODE_INVALID`, `CODE_EXPIRED`, `NO_ROUTE`;
+    - 422 `CODE_INVALID`, `CODE_EXPIRED`, `NO_ROUTE`; период запроса или публикации — `PERIOD_IN_PAST`, `PERIOD_INVALID` (из `HINT` БД);
     - 503 `ROUTING_UNAVAILABLE` — граф дорог не готов (остальные методы работают);
     - 500 `INTERNAL`, `DB_ERROR`.
 servers:
@@ -51,6 +54,8 @@ paths:
                 properties:
                   status: { type: string, example: ok }
                   routing: { type: string, description: Состояние графа дорог }
+                  time_zone: { type: string, example: Asia/Almaty, description: Пояс сессии БД (время API) }
+                  now: { type: string, format: date-time, description: Текущее время сервера в этом поясе }
 
   # ------------------------------------------------------------------ 4.1 вход
   /session:
@@ -435,6 +440,7 @@ paths:
         '400': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
     get:
       tags: [Клиент]
@@ -581,6 +587,7 @@ paths:
               schema: { $ref: '#/components/schemas/Slot' }
         '400': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
     get:
       tags: [Поставщик]

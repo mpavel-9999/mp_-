@@ -84,7 +84,10 @@ public final class ApiServer {
         ProviderApi provider = new ProviderApi(db, routing, jobs, deals);
 
         ApiServer api = new ApiServer(db, auth);
-        api.get("/api/health", (r, m) -> Response.ok("{\"status\":\"ok\",\"routing\":\"" + Http.escape(routing.state()) + "\"}"));
+        // пояс и время сессии БД - для проверки Р-4
+        api.get("/api/health", (r, m) -> Response.ok(db.tx(null, c -> Db.cell(c,
+            "SELECT json_build_object('status', 'ok', 'routing', ?::text, 'time_zone', current_setting('TimeZone'),"
+            + " 'now', to_char(localtimestamp, 'YYYY-MM-DD\"T\"HH24:MI:SS'))", routing.state()))));
         // 4.1 вход
         api.route("POST", "/api/session", config::login);
         api.route("DELETE", "/api/session", config::logout);
@@ -207,7 +210,7 @@ public final class ApiServer {
     }
 
     /**
-     * Ошибка БД -> HTTP. Правила процесса (RAISE EXCEPTION) -> 409 с кодом из HINT;
+     * Ошибка БД -> HTTP. Правила процесса (RAISE EXCEPTION) -> 409 с кодом из HINT, неверный период - 422;
      * дубль -> 409; неверные данные и ограничения -> 400.
      */
     private static Response fromDb(PSQLException e) {
@@ -216,7 +219,9 @@ public final class ApiServer {
         String text = msg != null && msg.getMessage() != null ? msg.getMessage() : e.getMessage();
         String hint = msg == null ? null : msg.getHint();
         return switch (state) {
-            case "P0001" -> Http.error(409, hint != null ? hint : "RULE", text);
+            case "P0001" -> hint != null && hint.startsWith("PERIOD_")
+                ? Http.error(422, hint, text)
+                : Http.error(409, hint != null ? hint : "RULE", text);
             case "23505" -> Http.error(409, "DUPLICATE", text);
             case "23514", "23502", "23503", "22P02", "22007", "22008", "22003", "22023" -> Http.error(400, "BAD_REQUEST", text);
             default -> Http.error(500, "DB_ERROR", text);

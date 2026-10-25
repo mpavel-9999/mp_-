@@ -14,7 +14,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 BASE = os.environ.get('MP_API', 'http://127.0.0.1:8080/api')
 PASSWORD = os.environ.get('MP_TEST_PASSWORD')
@@ -48,8 +48,11 @@ def step(name, fn):
         results.append((False, name, str(e)))
 
 
+ALMATY = timezone(timedelta(hours=5))  # время API - по Алматы (Р-4), независимо от пояса компьютера
+
+
 def ts(minutes):
-    return (datetime.now() + timedelta(minutes=minutes)).strftime('%Y-%m-%dT%H:%M:00')
+    return (datetime.now(ALMATY) + timedelta(minutes=minutes)).strftime('%Y-%m-%dT%H:%M:00')
 
 
 def wait_status(token, deal_id, status, seconds=75):

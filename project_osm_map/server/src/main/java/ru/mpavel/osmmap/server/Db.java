@@ -11,8 +11,12 @@ import java.util.List;
 /**
  * Доступ к БД: соединение на запрос, параметры сессии для триггеров, транзакция.
  * mp.agent_id - кто действует (пусто = система), mp.geo_secret - секрет смещения точек до согласования.
+ * TimeZone - пояс сессии: время в API алматинское без смещения в строке (Р-4), now() в БД - в том же поясе.
  */
 final class Db {
+
+    /** Пояс времени API и сессии БД (Р-4). */
+    static final String TIME_ZONE = "Asia/Almaty";
 
     /** Работа внутри транзакции. */
     interface Work<T> {
@@ -38,6 +42,7 @@ final class Db {
             try {
                 try (PreparedStatement ps = c.prepareStatement(
                         "SELECT set_config('search_path', 'mp_service, public', true),"
+                        + " set_config('TimeZone', '" + TIME_ZONE + "', true),"
                         + " set_config('mp.agent_id', ?, true), set_config('mp.geo_secret', ?, true)")) {
                     ps.setString(1, agentId == null ? "" : agentId.toString());
                     ps.setString(2, geoSecret);
