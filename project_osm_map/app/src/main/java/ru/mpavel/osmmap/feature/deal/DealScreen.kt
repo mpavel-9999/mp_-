@@ -114,6 +114,14 @@ fun offerLabel(o: Offer): String {
     ).joinToString(" · ")
 }
 
+/** Пометка о точности места отклика; у маршрутных услуг (такси) точка не смещается - пометки нет. */
+@Composable
+fun offerPlaceNote(o: Offer, geoMode: String?): String? = when {
+    o.isExact -> t("ui.exact_point")
+    geoMode == "route" -> null
+    else -> t("ui.approx_point")
+}
+
 /** Расстояние: точное после согласования, до него - интервал от смещённой точки (П-4). */
 @Composable
 fun offerDistance(o: Offer): String {
@@ -144,7 +152,7 @@ fun DealMap(state: DealState, modifier: Modifier = Modifier, attributionAlignmen
         for (o in state.offers) {
             if (o.showLat == null || o.showLon == null) continue
             add(MapMarker("offer:${o.dealOfferId}", LatLon(o.showLat, o.showLon), offerLabel(o),
-                          snippet = if (o.isExact) t("ui.exact_point") else t("ui.approx_point"),
+                          snippet = offerPlaceNote(o, deal.geoMode),
                           svg = icons.cursors[if (o.isTesting) "PROVIDER_TEST" else "PROVIDER"]))
         }
         for (p in state.positions) {
@@ -326,7 +334,7 @@ fun OfferCard(o: Offer, state: DealState, actions: DealActions, dense: Boolean =
             Text(offerLabel(o), style = if (dense) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
                  maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(
-                listOfNotNull(offerDistance(o).takeIf { it.isNotEmpty() }, if (o.isExact) t("ui.exact_point") else t("ui.approx_point"),
+                listOfNotNull(offerDistance(o).takeIf { it.isNotEmpty() }, offerPlaceNote(o, state.deal?.geoMode),
                               o.spotNumber?.let { "${t("ui.spot_number")}: $it" }, o.offerMode?.takeIf { it == "auto" }?.let { t("ui.auto_offer") })
                     .joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall, color = Mp.colors.textMuted, fontFamily = if (dense) Mp.fonts.mono else null,

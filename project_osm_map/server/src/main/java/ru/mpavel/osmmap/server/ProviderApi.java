@@ -79,7 +79,7 @@ final class ProviderApi {
             "SELECT coalesce(json_agg(s ORDER BY s.period_start DESC), '[]') FROM ("
             + " SELECT ps.*, gt.text_value AS service_name FROM provider_slot ps"
             + " JOIN service sv ON sv.service_id = ps.service_id"
-            + " JOIN glossary_text gt ON gt.glossary_id = sv.glossary_id AND gt.interface_lang_id = ?"
+            + " CROSS JOIN LATERAL (SELECT gloss(sv.glossary_id, ?::numeric) AS text_value) gt"
             + " WHERE ps.agent_id = ? AND (ps.slot_status = 'active' OR ps.period_end > now() - interval '1 day')) s",
             r.lang, me)));
     }
@@ -123,7 +123,7 @@ final class ProviderApi {
             + "        END AS recommended_price"
             + " FROM deal d"
             + " JOIN service sv ON sv.service_id = d.service_id"
-            + " JOIN glossary_text gt ON gt.glossary_id = sv.glossary_id AND gt.interface_lang_id = ?"
+            + " CROSS JOIN LATERAL (SELECT gloss(sv.glossary_id, ?::numeric) AS text_value) gt"
             + " JOIN LATERAL (SELECT * FROM agent_service a WHERE a.agent_id = ? AND a.is_active = 1"
             + "      AND service_covers(a.service_id, d.service_id) ORDER BY (a.service_id = d.service_id) DESC LIMIT 1) s ON true"
             + " WHERE d.deal_id = ANY (?::numeric[])"

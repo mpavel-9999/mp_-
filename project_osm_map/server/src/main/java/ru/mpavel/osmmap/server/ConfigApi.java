@@ -93,7 +93,7 @@ final class ConfigApi {
             + "        'newbie', NOT agent_has_rating(a.agent_id, 'PROVIDER', s.service_id))"
             + "        ORDER BY s.service_id), '[]')"
             + "     FROM agent_service s JOIN service sv ON sv.service_id = s.service_id"
-            + "     JOIN glossary_text gt ON gt.glossary_id = sv.glossary_id AND gt.interface_lang_id = ?"
+            + "     CROSS JOIN LATERAL (SELECT gloss(sv.glossary_id, ?::numeric) AS text_value) gt"
             + "     WHERE s.agent_id = a.agent_id AND s.is_active = 1 AND sv.node_type <> 'system'))"
             + " FROM agent a JOIN interface_lang l ON l.interface_lang_id = a.interface_lang_id"
             + " WHERE a.agent_id = ?", lang, agentId));
@@ -229,7 +229,7 @@ final class ConfigApi {
             "SELECT coalesce(json_agg(b ORDER BY b.sort_order), '[]') FROM ("
             + " SELECT d.dict_code AS code, d.sort_order, d.value_num AS version, d.value_text AS url,"
             + "        gt.text_value AS attribution"
-            + " FROM dictionary d JOIN glossary_text gt ON gt.glossary_id = d.glossary_id AND gt.interface_lang_id = ?"
+            + " FROM dictionary d CROSS JOIN LATERAL (SELECT gloss(d.glossary_id, ?::numeric) AS text_value) gt"
             + " WHERE d.dict_type = 'MAP_BASE_LAYER' AND d.is_active = 1) b", r.lang)));
     }
 

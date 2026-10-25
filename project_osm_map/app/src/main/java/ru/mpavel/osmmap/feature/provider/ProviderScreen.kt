@@ -145,10 +145,17 @@ private fun ProviderContent(state: ProviderState, nav: Nav, onRemove: (Long) -> 
         }
         item {
             SectionTitle(t("ui.incoming"))
-            Text(
-                if (state.incoming == 0) t("ui.no_requests") else "${t("ui.incoming")}: ${state.incoming}",
-                color = if (state.incoming == 0) Mp.colors.textMuted else MaterialTheme.colorScheme.onSurface,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (state.incoming == 0) t("ui.no_requests") else "${t("ui.incoming")}: ${state.incoming}",
+                    color = if (state.incoming == 0) Mp.colors.textMuted else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                )
+                // список - в раскладке шаблона (provider_request); открывается и при пустом списке - ждать новых
+                Button(onClick = nav::incoming, shape = Mp.shapes.button, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text(t("ui.incoming"))
+                }
+            }
         }
         item { SectionTitle(t("ui.my_slots")) }
         if (state.slots.isEmpty()) {

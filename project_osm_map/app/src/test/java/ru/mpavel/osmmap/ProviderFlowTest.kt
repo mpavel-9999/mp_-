@@ -7,11 +7,17 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import ru.mpavel.osmmap.core.net.decodeBody
+import ru.mpavel.osmmap.data.AttrValue
+import ru.mpavel.osmmap.data.FormField
 import ru.mpavel.osmmap.data.IncomingRequest
+import ru.mpavel.osmmap.data.MyOffer
 import ru.mpavel.osmmap.data.MyService
 import ru.mpavel.osmmap.data.Slot
+import ru.mpavel.osmmap.feature.provider.OfferState
 import ru.mpavel.osmmap.feature.provider.SlotState
+import ru.mpavel.osmmap.feature.provider.buildOfferCreate
 import ru.mpavel.osmmap.feature.provider.buildSlotCreate
+import ru.mpavel.osmmap.feature.provider.visibleRequests
 import ru.mpavel.osmmap.ui.map.LatLon
 import ru.mpavel.osmmap.ui.template.Tab
 import ru.mpavel.osmmap.ui.template.tabsFor
@@ -77,6 +83,31 @@ class ProviderFlowTest {
         assertNull(noB.toLat)
         assertNull(noB.radiusToM)
         assertEquals(300.0, noB.radiusM!!, 0.0)
+    }
+
+    @Test
+    fun skippedHiddenUnlessOffered() {
+        val reqs = listOf(
+            IncomingRequest(dealId = 1, serviceId = 1001),
+            IncomingRequest(dealId = 2, serviceId = 1001),
+            IncomingRequest(dealId = 3, serviceId = 1001, myOffer = MyOffer(7, 900.0, "active")),
+        )
+        assertEquals(listOf(1L, 2L, 3L), visibleRequests(reqs, emptySet()).map { it.dealId })
+        // пропущенный скрыт; с моим откликом - остаётся (видно "Отклик отправлен")
+        assertEquals(listOf(1L, 3L), visibleRequests(reqs, setOf(2L, 3L)).map { it.dealId })
+    }
+
+    @Test
+    fun offerBody() {
+        val fields = listOf(
+            FormField(attributeId = 30, type = "text", label = "a"),
+            FormField(attributeId = 31, type = "car_number", label = "b"),
+        )
+        val body = requireNotNull(buildOfferCreate(OfferState(fields = fields, values = mapOf(30L to " 18:20 ", 31L to ""), price = "1100")))
+        assertEquals(1100.0, body.price, 0.0)
+        assertEquals(listOf(AttrValue(30, "18:20")), body.attributes)
+        assertEquals(950.5, buildOfferCreate(OfferState(price = "950,5"))!!.price, 0.0)
+        assertNull("цена не число", buildOfferCreate(OfferState(price = "")))
     }
 
     @Test

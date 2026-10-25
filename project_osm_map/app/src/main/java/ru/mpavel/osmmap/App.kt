@@ -41,6 +41,7 @@ import ru.mpavel.osmmap.feature.deals.DealsScreen
 import ru.mpavel.osmmap.feature.home.HomeScreen
 import ru.mpavel.osmmap.feature.login.LoginScreen
 import ru.mpavel.osmmap.feature.profile.ProfileScreen
+import ru.mpavel.osmmap.feature.provider.IncomingScreen
 import ru.mpavel.osmmap.feature.provider.ProviderScreen
 import ru.mpavel.osmmap.feature.provider.ServiceSettingsScreen
 import ru.mpavel.osmmap.feature.provider.SlotScreen
@@ -82,6 +83,10 @@ data class ReviewRoute(val dealId: Long)
 /** Раздел поставщика: мои сервисы, публикации, входящие запросы. */
 @Serializable
 object ProviderRoute
+
+/** Входящие запросы поставщика: подходящие запросы, отклик, "Пропустить" (алгоритм 3.2-3.5). */
+@Serializable
+object IncomingRoute
 
 /** Публикация окна или маршрута по подключённому сервису (алгоритм 4.1, 4.2). */
 @Serializable
@@ -139,6 +144,7 @@ class AppViewModel(private val graph: AppGraph) : ViewModel() {
     fun logout() {
         viewModelScope.launch {
             graph.notifyCenter.stop()
+            graph.skipped.clear()
             runCatching { graph.session.logout() }
             _state.value = AppState.LoggedOut
         }
@@ -184,6 +190,7 @@ class Nav(private val nav: NavHostController) {
     fun review(dealId: Long) = nav.navigate(ReviewRoute(dealId)) { launchSingleTop = true }
     fun deals() = nav.navigate(DealsRoute) { launchSingleTop = true }
     fun provider() = nav.navigate(ProviderRoute) { launchSingleTop = true }
+    fun incoming() = nav.navigate(IncomingRoute) { launchSingleTop = true }
     fun slot(serviceId: Long) = nav.navigate(SlotRoute(serviceId))
     fun serviceSettings(serviceId: Long) = nav.navigate(ServiceSettingsRoute(serviceId))
     fun home() = nav.navigate(HomeRoute) { popUpTo(HomeRoute) { inclusive = true } }
@@ -209,6 +216,7 @@ private fun MainNav(graph: AppGraph, roles: List<String>, onLogout: () -> Unit) 
         destination?.hasRoute<RequestRoute>() == true -> t("ui.new_request")
         destination?.hasRoute<DealRoute>() == true -> t("ui.deal")
         destination?.hasRoute<ReviewRoute>() == true -> t("ui.review_title")
+        destination?.hasRoute<IncomingRoute>() == true -> t("ui.incoming")
         destination?.hasRoute<SlotRoute>() == true -> t("ui.publish")
         destination?.hasRoute<ServiceSettingsRoute>() == true -> t("ui.service_settings")
         else -> null
@@ -265,6 +273,7 @@ private fun MainNav(graph: AppGraph, roles: List<String>, onLogout: () -> Unit) 
             composable<DealRoute> { e -> DealScreen(graph, nav, e.toRoute<DealRoute>().dealId) }
             composable<ReviewRoute> { e -> ReviewScreen(graph, nav, e.toRoute<ReviewRoute>().dealId) }
             composable<ProviderRoute> { ProviderScreen(graph, nav) }
+            composable<IncomingRoute> { IncomingScreen(graph, nav) }
             composable<SlotRoute> { e -> SlotScreen(graph, nav, e.toRoute<SlotRoute>().serviceId) }
             composable<ServiceSettingsRoute> { e -> ServiceSettingsScreen(graph, nav, e.toRoute<ServiceSettingsRoute>().serviceId) }
         }

@@ -44,7 +44,7 @@ final class DealApi {
             + "        round(geo_distance_m(?::numeric, ?::numeric, v.show_lat, v.show_lon), -1) AS distance_m"
             + " FROM v_provider_slot_map v"
             + " JOIN service s ON s.service_id = v.service_id"
-            + " JOIN glossary_text gt ON gt.glossary_id = s.glossary_id AND gt.interface_lang_id = ?"
+            + " CROSS JOIN LATERAL (SELECT gloss(s.glossary_id, ?::numeric) AS text_value) gt"
             + " WHERE v.agent_id <> ?"
             + "   AND (?::numeric IS NULL OR service_covers(v.service_id, ?::numeric) OR service_covers(?::numeric, v.service_id))"
             + "   AND geo_distance_m(?::numeric, ?::numeric, v.show_lat, v.show_lon) <= ?) s",
@@ -178,9 +178,9 @@ final class DealApi {
             + "              OR (st.dict_code = 'CANCEL_PROVIDER' AND d.client_agent_id = ?))) AS review_pending"
             + " FROM deal d"
             + " JOIN dictionary st ON st.dict_id = d.deal_status_id"
-            + " JOIN glossary_text stt ON stt.glossary_id = st.glossary_id AND stt.interface_lang_id = ?"
+            + " CROSS JOIN LATERAL (SELECT gloss(st.glossary_id, ?::numeric) AS text_value) stt"
             + " JOIN service s ON s.service_id = d.service_id"
-            + " JOIN glossary_text sn ON sn.glossary_id = s.glossary_id AND sn.interface_lang_id = ?"
+            + " CROSS JOIN LATERAL (SELECT gloss(s.glossary_id, ?::numeric) AS text_value) sn"
             + " WHERE ((d.client_agent_id = ? AND ? IN ('client','all'))"
             + "     OR ((d.provider_agent_id = ? OR EXISTS (SELECT 1 FROM deal_offer o WHERE o.deal_id = d.deal_id"
             + "          AND o.provider_agent_id = ? AND o.offer_status = 'active')) AND ? IN ('provider','all')))"
@@ -235,7 +235,7 @@ final class DealApi {
         + "        (SELECT is_testing = 1 FROM agent WHERE agent_id = p.me) AS me_testing"
         + "      FROM deal d CROSS JOIN p"
         + "      JOIN dictionary st ON st.dict_id = d.deal_status_id"
-        + "      JOIN glossary_text stt ON stt.glossary_id = st.glossary_id AND stt.interface_lang_id = p.lang"
+        + "      CROSS JOIN LATERAL (SELECT gloss(st.glossary_id, p.lang) AS text_value) stt"
         + "      WHERE d.deal_id = p.deal_id),"
         + " x AS (SELECT d.*, (d.provider_agent_id IS NOT NULL AND d.my_role IN ('client','provider')"
         + "         AND NOT EXISTS (SELECT 1 FROM deal_review rv WHERE rv.deal_id = d.deal_id AND rv.from_agent_id = d.me)"
@@ -245,8 +245,7 @@ final class DealApi {
         + "      FROM d)"
         + " SELECT json_build_object("
         + "  'deal_id', x.deal_id, 'service_id', x.service_id,"
-        + "  'service_name', (SELECT gt.text_value FROM service s JOIN glossary_text gt ON gt.glossary_id = s.glossary_id"
-        + "                   AND gt.interface_lang_id = x.lang WHERE s.service_id = x.service_id),"
+        + "  'service_name', (SELECT gloss(s.glossary_id, x.lang) FROM service s WHERE s.service_id = x.service_id),"
         + "  'service_path', (SELECT service_path FROM v_service_search v WHERE v.service_id = x.service_id AND v.interface_lang_id = x.lang),"
         + "  'status', x.status, 'status_name', x.status_name, 'my_role', x.my_role,"
         + "  'geo_mode', get_setting(x.service_id, 'geo_mode'), 'place_mode', x.place_mode,"
@@ -345,7 +344,7 @@ final class DealApi {
                 + " SELECT r.deal_offer_id, r.provider_code, r.sort_order, r.route_url, gt.text_value AS provider_name"
                 + " FROM v_deal_offer_route r"
                 + " JOIN dictionary m ON m.dict_type = 'MAP_ROUTE_LINK' AND m.dict_code = r.provider_code"
-                + " JOIN glossary_text gt ON gt.glossary_id = m.glossary_id AND gt.interface_lang_id = ?"
+                + " CROSS JOIN LATERAL (SELECT gloss(m.glossary_id, ?::numeric) AS text_value) gt"
                 + " WHERE r.deal_id = ?) r", r.lang, dealId);
         }));
     }

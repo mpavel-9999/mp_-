@@ -215,10 +215,12 @@ fun FieldsBlock(state: RequestState, actions: RequestActions) {
     }
 }
 
-private val UNSUPPORTED_TYPES = setOf("photo", "card_token", "card_exp")
+/** Типы полей без виджета в прототипе (фото, данные карты) - не показываются. */
+val UNSUPPORTED_TYPES = setOf("photo", "card_token", "card_exp")
 
+/** Поле формы по attribute_type; общее для запроса клиента и отклика поставщика. */
 @Composable
-private fun FieldInput(field: FormField, value: String, invalid: Boolean, onChange: (String) -> Unit) {
+fun FieldInput(field: FormField, value: String, invalid: Boolean, onChange: (String) -> Unit) {
     val options = field.options.orEmpty()
     if (options.isNotEmpty()) {
         Text(field.label + if (field.required) " *" else "", style = MaterialTheme.typography.bodyMedium,

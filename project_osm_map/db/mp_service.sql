@@ -573,6 +573,16 @@ RETURNS numeric LANGUAGE sql STABLE SET search_path = mp_service AS $$
     SELECT dict_id FROM dictionary WHERE dict_type = p_type AND dict_code = p_code
 $$;
 
+-- Текст глоссария на языке агента; без перевода - русский (алгоритм п. 0.5)
+CREATE FUNCTION gloss(p_glossary_id numeric, p_lang numeric)
+RETURNS text LANGUAGE sql STABLE SET search_path = mp_service AS $$
+    -- Что делает: Текст термина глоссария на языке интерфейса агента; если перевода нет - на русском (п. 0.5).
+    -- Методика: Ищет glossary_text на языке p_lang, иначе на RUS (interface_lang_id = 1); так строка с непереведённым названием не выпадает из выборки.
+    SELECT coalesce(
+        (SELECT text_value FROM glossary_text WHERE glossary_id = p_glossary_id AND interface_lang_id = p_lang),
+        (SELECT text_value FROM glossary_text WHERE glossary_id = p_glossary_id AND interface_lang_id = 1))
+$$;
+
 -- Расстояние между точками в метрах (гаверсинус). При переходе на PostGIS - ST_Distance.
 CREATE FUNCTION geo_distance_m(lat1 numeric, lon1 numeric, lat2 numeric, lon2 numeric)
 RETURNS numeric LANGUAGE sql IMMUTABLE STRICT AS $$
@@ -2256,6 +2266,7 @@ BEGIN
         FROM (VALUES
     ('check_dict_type', 'Триггер: проверяет, что значение общего справочника в колонке имеет ожидаемый dict_type (ОВ-22). Аргументы триггера - пары (колонка, тип); значение колонки берется из to_jsonb(NEW), тип ищется в dictionary; несовпадение - исключение.'),
     ('dict_id', 'Возвращает id значения общего справочника по типу и коду. Прямой поиск по уникальной паре (dict_type, dict_code).'),
+    ('gloss', 'Текст термина глоссария на языке интерфейса агента; без перевода - на русском (п. 0.5). Ищет glossary_text на языке p_lang, иначе на RUS; строка с непереведённым названием не выпадает из выборки (найдено в Э5: агент на KAZ не видел входящих запросов).'),
     ('geo_distance_m', 'Расстояние между двумя точками по прямой, м. Формула гаверсинуса на сфере радиусом 6 371 км, округление до 0,1 м; при переходе на PostGIS - ST_Distance.'),
     ('offer_sort_key', 'Ключ сортировки отклика по спецификации "поле:направление" (distance/rating/price, asc/desc). Берет значение нужного поля и умножает на -1 для desc, чтобы все ключи сортировать по возрастанию.'),
     ('get_setting', 'Значение настройки сервиса для узла дерева с учетом наследования и рейтинга поставщика. Ищет строки настройки на узле и его предках, затем на платформе; ближайший узел побеждает, при переданном рейтинге сначала строки с подходящим диапазоном.'),

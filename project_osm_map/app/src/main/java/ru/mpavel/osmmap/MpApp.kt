@@ -18,6 +18,7 @@ import ru.mpavel.osmmap.data.NotificationRepository
 import ru.mpavel.osmmap.data.ProviderRepository
 import ru.mpavel.osmmap.data.ServiceRepository
 import ru.mpavel.osmmap.data.SessionRepository
+import ru.mpavel.osmmap.feature.provider.SkippedRequests
 import java.io.File
 
 /** Зависимости приложения: один клиент API и репозитории на весь процесс. */
@@ -31,6 +32,7 @@ class AppGraph(context: Context) {
     val provider = ProviderRepository(api)
     val notifications = NotificationRepository(api)
     val notifyCenter = NotificationCenter(notifications)
+    val skipped = SkippedRequests(context)
 }
 
 class MpApp : Application(), SingletonImageLoader.Factory {
