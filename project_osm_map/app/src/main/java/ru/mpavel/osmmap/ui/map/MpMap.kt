@@ -123,6 +123,8 @@ fun MpMap(
     center: LatLon = DefaultCenter,
     zoom: Double = 15.0,
     zone: MapZone? = null,
+    /** Дополнительные круги тем же цветом: rA и rB маршрута поставщика, зоны входящих запросов. */
+    zones: List<MapZone> = emptyList(),
     markers: List<MapMarker> = emptyList(),
     lines: List<MapLine> = emptyList(),
     onMarkerClick: (String) -> Unit = {},
@@ -198,9 +200,9 @@ fun MpMap(
                         setOnClickListener { _, _, _ -> false }
                     })
                 }
-                if (zone != null) {
+                for (z in listOfNotNull(zone) + zones) {
                     view.overlays.add(Polygon(view).apply {
-                        points = Polygon.pointsAsCircle(GeoPoint(zone.center.lat, zone.center.lon), zone.radiusM)
+                        points = Polygon.pointsAsCircle(GeoPoint(z.center.lat, z.center.lon), z.radiusM)
                         fillPaint.color = colors.zone.copy(alpha = 0.15f).toArgb()
                         outlinePaint.color = colors.zone.toArgb()
                         outlinePaint.strokeWidth = 4f

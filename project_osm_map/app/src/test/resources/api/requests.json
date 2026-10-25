@@ -1,0 +1,30 @@
+[
+ {
+  "deal_id": 6,
+  "service_id": 1001,
+  "service_name": "Почасовая парковка",
+  "period_start": "2026-10-26T03:47:00",
+  "period_end": "2026-10-26T04:47:00",
+  "lat": 43.238,
+  "lon": 76.889,
+  "zone_radius_m": 100,
+  "to_lat": null,
+  "to_lon": null,
+  "route_length_m": null,
+  "client_price": null,
+  "price_forecast_min": 700.0,
+  "price_forecast_max": 1500.0,
+  "price_unit": "hour",
+  "geo_mode": "point",
+  "place_mode": "provider",
+  "my_offer": {
+   "deal_offer_id": 4,
+   "price": 1000.0,
+   "status": "active"
+  },
+  "client_rating": 4.0,
+  "client_newbie": false,
+  "offers_active": 3,
+  "recommended_price": 1100
+ }
+]

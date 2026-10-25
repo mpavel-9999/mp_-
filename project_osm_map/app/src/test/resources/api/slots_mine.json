@@ -1,0 +1,21 @@
+[
+ {
+  "slot_id": 1,
+  "agent_id": 2,
+  "service_id": 100,
+  "geo_lat": 43.23827,
+  "geo_lon": 76.889,
+  "radius_m": null,
+  "geo_to_lat": null,
+  "geo_to_lon": null,
+  "radius_to_m": null,
+  "route_polyline": null,
+  "route_length_m": null,
+  "period_start": "2026-10-26T00:47:00",
+  "period_end": "2026-10-26T09:47:00",
+  "price_min": 800.0,
+  "slot_status": "active",
+  "date_creation": "2026-10-26T01:47:26.317658",
+  "service_name": "Парковка"
+ }
+]

@@ -41,6 +41,9 @@ import ru.mpavel.osmmap.feature.deals.DealsScreen
 import ru.mpavel.osmmap.feature.home.HomeScreen
 import ru.mpavel.osmmap.feature.login.LoginScreen
 import ru.mpavel.osmmap.feature.profile.ProfileScreen
+import ru.mpavel.osmmap.feature.provider.ProviderScreen
+import ru.mpavel.osmmap.feature.provider.ServiceSettingsScreen
+import ru.mpavel.osmmap.feature.provider.SlotScreen
 import ru.mpavel.osmmap.feature.request.RequestScreen
 import ru.mpavel.osmmap.feature.review.ReviewScreen
 import ru.mpavel.osmmap.feature.settings.SettingsScreen
@@ -49,6 +52,7 @@ import ru.mpavel.osmmap.ui.common.LoadingBox
 import ru.mpavel.osmmap.ui.map.LocalBaseLayer
 import ru.mpavel.osmmap.ui.template.AppFrame
 import ru.mpavel.osmmap.ui.template.Tab
+import ru.mpavel.osmmap.ui.template.tabsFor
 
 // Маршруты навигации (типобезопасные, kotlinx.serialization)
 @Serializable
@@ -75,6 +79,18 @@ data class DealRoute(val dealId: Long)
 @Serializable
 data class ReviewRoute(val dealId: Long)
 
+/** Раздел поставщика: мои сервисы, публикации, входящие запросы. */
+@Serializable
+object ProviderRoute
+
+/** Публикация окна или маршрута по подключённому сервису (алгоритм 4.1, 4.2). */
+@Serializable
+data class SlotRoute(val serviceId: Long)
+
+/** Настройки поставщика по сервису: зона, время, цены, тариф, автоотклик. */
+@Serializable
+data class ServiceSettingsRoute(val serviceId: Long)
+
 /** Состояние приложения: вход -> конфигурация интерфейса -> экраны. */
 sealed interface AppState {
     data object Starting : AppState
@@ -87,6 +103,10 @@ class AppViewModel(private val graph: AppGraph) : ViewModel() {
 
     private val _state = MutableStateFlow<AppState>(AppState.Starting)
     val state: StateFlow<AppState> = _state
+
+    /** Роли агента из GET /me - от них зависят разделы оболочки (раздел "Поставщик"). */
+    private val _roles = MutableStateFlow<List<String>>(emptyList())
+    val roles: StateFlow<List<String>> = _roles
 
     init {
         viewModelScope.launch {
@@ -105,6 +125,7 @@ class AppViewModel(private val graph: AppGraph) : ViewModel() {
             _state.value = AppState.Starting
             _state.value = try {
                 graph.config.load()
+                _roles.value = graph.session.me().roles.orEmpty()
                 graph.notifyCenter.start(viewModelScope)
                 AppState.Ready
             } catch (e: ApiError) {
@@ -129,6 +150,7 @@ class AppViewModel(private val graph: AppGraph) : ViewModel() {
 fun App(graph: AppGraph) {
     val vm: AppViewModel = viewModel { AppViewModel(graph) }
     val state by vm.state.collectAsStateWithLifecycle()
+    val roles by vm.roles.collectAsStateWithLifecycle()
     val config by graph.config.config.collectAsStateWithLifecycle()
 
     MpTheme(config?.scheme, config?.template) {
@@ -142,7 +164,7 @@ fun App(graph: AppGraph) {
                     AppState.Starting -> LoadingBox()
                     AppState.LoggedOut -> LoginScreen(graph, onLoggedIn = vm::loadConfig)
                     is AppState.Failed -> ErrorBox(s.error, onRetry = vm::loadConfig)
-                    AppState.Ready -> MainNav(graph, onLogout = vm::logout)
+                    AppState.Ready -> MainNav(graph, roles, onLogout = vm::logout)
                 }
             }
         }
@@ -161,19 +183,24 @@ class Nav(private val nav: NavHostController) {
 
     fun review(dealId: Long) = nav.navigate(ReviewRoute(dealId)) { launchSingleTop = true }
     fun deals() = nav.navigate(DealsRoute) { launchSingleTop = true }
+    fun provider() = nav.navigate(ProviderRoute) { launchSingleTop = true }
+    fun slot(serviceId: Long) = nav.navigate(SlotRoute(serviceId))
+    fun serviceSettings(serviceId: Long) = nav.navigate(ServiceSettingsRoute(serviceId))
     fun home() = nav.navigate(HomeRoute) { popUpTo(HomeRoute) { inclusive = true } }
     fun back() = nav.popBackStack()
 }
 
 @Composable
-private fun MainNav(graph: AppGraph, onLogout: () -> Unit) {
+private fun MainNav(graph: AppGraph, roles: List<String>, onLogout: () -> Unit) {
     val controller = rememberNavController()
     val nav = remember(controller) { Nav(controller) }
     val entry by controller.currentBackStackEntryAsState()
     val destination = entry?.destination
+    val tabs = remember(roles) { tabsFor(roles) }
     val current: Tab? = when {
         destination == null || destination.hasRoute<HomeRoute>() -> Tab.HOME
         destination.hasRoute<DealsRoute>() -> Tab.DEALS
+        destination.hasRoute<ProviderRoute>() -> Tab.PROVIDER
         destination.hasRoute<SettingsRoute>() -> Tab.SETTINGS
         destination.hasRoute<ProfileRoute>() -> Tab.PROFILE
         else -> null
@@ -182,6 +209,8 @@ private fun MainNav(graph: AppGraph, onLogout: () -> Unit) {
         destination?.hasRoute<RequestRoute>() == true -> t("ui.new_request")
         destination?.hasRoute<DealRoute>() == true -> t("ui.deal")
         destination?.hasRoute<ReviewRoute>() == true -> t("ui.review_title")
+        destination?.hasRoute<SlotRoute>() == true -> t("ui.publish")
+        destination?.hasRoute<ServiceSettingsRoute>() == true -> t("ui.service_settings")
         else -> null
     }
 
@@ -206,10 +235,12 @@ private fun MainNav(graph: AppGraph, onLogout: () -> Unit) {
         current = current,
         title = title,
         snackbar = snackbar,
+        tabs = tabs,
         onTab = { tab ->
             val route: Any = when (tab) {
                 Tab.HOME -> HomeRoute
                 Tab.DEALS -> DealsRoute
+                Tab.PROVIDER -> ProviderRoute
                 Tab.SETTINGS -> SettingsRoute
                 Tab.PROFILE -> ProfileRoute
             }
@@ -233,6 +264,9 @@ private fun MainNav(graph: AppGraph, onLogout: () -> Unit) {
             }
             composable<DealRoute> { e -> DealScreen(graph, nav, e.toRoute<DealRoute>().dealId) }
             composable<ReviewRoute> { e -> ReviewScreen(graph, nav, e.toRoute<ReviewRoute>().dealId) }
+            composable<ProviderRoute> { ProviderScreen(graph, nav) }
+            composable<SlotRoute> { e -> SlotScreen(graph, nav, e.toRoute<SlotRoute>().serviceId) }
+            composable<ServiceSettingsRoute> { e -> ServiceSettingsScreen(graph, nav, e.toRoute<ServiceSettingsRoute>().serviceId) }
         }
     }
 }

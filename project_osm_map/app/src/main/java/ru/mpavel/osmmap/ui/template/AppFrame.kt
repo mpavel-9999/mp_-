@@ -39,20 +39,30 @@ import ru.mpavel.osmmap.core.theme.Mp
 enum class Tab(val icon: String, val textKey: String) {
     HOME("home", "ui.home"),
     DEALS("note", "ui.active_deals"),
+    PROVIDER("wrench", "ui.provider"),
     SETTINGS("gear", "ui.settings"),
     PROFILE("user", "ui.profile"),
 }
+
+/** Роли, которым нужен раздел "Поставщик": публикации, входящие запросы, настройки сервиса. */
+private val PROVIDER_ROLES = setOf("PROVIDER", "SUBAGENT")
+
+/** Разделы агента: "Поставщик" - только при роли поставщика или субагента (роли из GET /me). */
+fun tabsFor(roles: List<String>?): List<Tab> =
+    Tab.entries.filter { it != Tab.PROVIDER || roles.orEmpty().any { r -> r in PROVIDER_ROLES } }
 
 /**
  * Каркас по template.navigation: top_actions (A) - кнопки сверху, bottom_tabs (B) - нижнее меню,
  * fab (C) - кнопка действия с меню разделов. Содержимое экранов одно и то же.
  * [current] = null - экран вне разделов (запрос, сделка, баллы): заголовок [title] и "Назад".
+ * [tabs] - разделы агента ([tabsFor]).
  */
 @Composable
 fun AppFrame(
     current: Tab?,
     title: String?,
     snackbar: SnackbarHostState,
+    tabs: List<Tab>,
     onTab: (Tab) -> Unit,
     onBack: (() -> Unit)?,
     content: @Composable (Modifier) -> Unit,
@@ -61,13 +71,13 @@ fun AppFrame(
     when (Mp.template.navigation) {
         "bottom_tabs" -> Scaffold(
             topBar = { if (current == null) TitleBar(current, title, onBack, actions = {}) },
-            bottomBar = { if (current != null) BottomTabs(current, onTab) },
+            bottomBar = { if (current != null) BottomTabs(tabs, current, onTab) },
             snackbarHost = snackHost,
         ) { padding -> content(Modifier.padding(padding)) }
 
         "fab" -> Scaffold(
             topBar = { TitleBar(current, title, onBack, actions = {}) },
-            floatingActionButton = { if (current != null) SectionsFab(onTab) },
+            floatingActionButton = { if (current != null) SectionsFab(tabs, onTab) },
             snackbarHost = snackHost,
         ) { padding -> content(Modifier.padding(padding)) }
 
@@ -75,9 +85,7 @@ fun AppFrame(
             topBar = {
                 TitleBar(current, title, onBack) {
                     if (current != null) {
-                        ActionIcon(Tab.DEALS, current, onTab)
-                        ActionIcon(Tab.SETTINGS, current, onTab)
-                        ActionIcon(Tab.PROFILE, current, onTab)
+                        for (tab in tabs) if (tab != Tab.HOME) ActionIcon(tab, current, onTab)
                     }
                 }
             },
@@ -126,9 +134,9 @@ private fun ActionIcon(tab: Tab, current: Tab?, onTab: (Tab) -> Unit) {
 }
 
 @Composable
-private fun BottomTabs(current: Tab, onTab: (Tab) -> Unit) {
+private fun BottomTabs(tabs: List<Tab>, current: Tab, onTab: (Tab) -> Unit) {
     NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-        for (tab in Tab.entries) {
+        for (tab in tabs) {
             val selected = tab == current
             NavigationBarItem(
                 selected = selected,
@@ -144,7 +152,7 @@ private fun BottomTabs(current: Tab, onTab: (Tab) -> Unit) {
 }
 
 @Composable
-private fun SectionsFab(onTab: (Tab) -> Unit) {
+private fun SectionsFab(tabs: List<Tab>, onTab: (Tab) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         FloatingActionButton(
@@ -156,7 +164,7 @@ private fun SectionsFab(onTab: (Tab) -> Unit) {
             MpIcon("layout", tint = MaterialTheme.colorScheme.onPrimary)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            for (tab in Tab.entries) {
+            for (tab in tabs) {
                 DropdownMenuItem(
                     text = { Text(t(tab.textKey)) },
                     leadingIcon = { MpIcon(tab.icon) },

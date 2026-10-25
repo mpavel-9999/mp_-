@@ -416,11 +416,18 @@ data class IncomingRequest(
     val priceForecastMax: Double? = null,
     val priceUnit: String? = null,
     val geoMode: String? = null,
+    val placeMode: String? = null,
+    /** Мой последний отклик; null - ещё не откликался (запрос с откликом остаётся в списке, пока сделка открыта). */
+    val myOffer: MyOffer? = null,
     val clientRating: Double? = null,
     val clientNewbie: Boolean = false,
     val offersActive: Int = 0,
     val recommendedPrice: Double? = null,
 )
+
+/** Свой отклик во входящем запросе: active / selected / declined / withdrawn / expired. */
+@Serializable
+data class MyOffer(val dealOfferId: Long, val price: Double, val status: String)
 
 /** PUT /me/services/{id}: отсутствующие поля не меняются. */
 @Serializable
