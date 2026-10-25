@@ -615,7 +615,9 @@ paths:
     get:
       tags: [Поставщик]
       summary: Подходящие открытые запросы с рекомендованной ценой
-      description: Кандидаты из `v_deal_candidates`; для такси — только поездки по пути водителя.
+      description: |
+        Кандидаты из `v_deal_candidates`; для такси — только поездки по пути водителя.
+        Запросы, на которые уже есть мой отклик, остаются в списке, пока сделка открыта (MATCHING, OFFERS), — с полем `my_offer`.
       responses:
         '200':
           description: Запросы
@@ -1135,6 +1137,15 @@ components:
         price_forecast_max: { type: number, nullable: true }
         price_unit: { type: string }
         geo_mode: { type: string }
+        place_mode: { type: string, enum: [provider, client, online] }
+        my_offer:
+          type: object
+          nullable: true
+          description: Мой последний отклик на этот запрос; null — ещё не откликался
+          properties:
+            deal_offer_id: { type: integer }
+            price: { type: number }
+            status: { type: string, enum: [active, selected, declined, withdrawn, expired] }
         client_rating: { type: number, nullable: true }
         client_newbie: { type: boolean }
         offers_active: { type: integer }

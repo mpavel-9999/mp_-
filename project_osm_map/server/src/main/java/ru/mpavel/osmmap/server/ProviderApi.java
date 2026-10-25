@@ -96,7 +96,10 @@ final class ProviderApi {
         return Response.ok("{\"status\":\"ok\"}");
     }
 
-    /** GET /api/requests - подходящие открытые запросы с рекомендованной ценой; такси - только по пути. */
+    /**
+     * GET /api/requests - подходящие открытые запросы с рекомендованной ценой; такси - только по пути.
+     * Запросы, на которые уже есть мой отклик, остаются в списке, пока сделка открыта (MATCHING, OFFERS), с полем my_offer.
+     */
     Response requests(Request r, Matcher m) throws SQLException {
         long me = r.agent();
         List<Long> ids = jobs.matchingDealsFor(me);
@@ -106,6 +109,10 @@ final class ProviderApi {
             + "        d.geo_lat AS lat, d.geo_lon AS lon, d.zone_radius_m, d.geo_to_lat AS to_lat, d.geo_to_lon AS to_lon,"
             + "        d.route_length_m, d.client_price, d.price_forecast_min, d.price_forecast_max,"
             + "        get_setting(d.service_id, 'price_unit') AS price_unit, get_setting(d.service_id, 'geo_mode') AS geo_mode,"
+            + "        get_setting(d.service_id, 'place_mode') AS place_mode,"
+            + "        (SELECT json_build_object('deal_offer_id', o.deal_offer_id, 'price', o.offer_price, 'status', o.offer_status)"
+            + "           FROM deal_offer o WHERE o.deal_id = d.deal_id AND o.provider_agent_id = ?"
+            + "           ORDER BY o.deal_offer_id DESC LIMIT 1) AS my_offer,"
             + "        agent_rating(d.client_agent_id, 'CLIENT', d.service_id) AS client_rating,"
             + "        NOT agent_has_rating(d.client_agent_id, 'CLIENT', d.service_id) AS client_newbie,"
             + "        (SELECT count(*) FROM deal_offer o WHERE o.deal_id = d.deal_id AND o.offer_status = 'active') AS offers_active,"
@@ -119,8 +126,10 @@ final class ProviderApi {
             + " JOIN glossary_text gt ON gt.glossary_id = sv.glossary_id AND gt.interface_lang_id = ?"
             + " JOIN LATERAL (SELECT * FROM agent_service a WHERE a.agent_id = ? AND a.is_active = 1"
             + "      AND service_covers(a.service_id, d.service_id) ORDER BY (a.service_id = d.service_id) DESC LIMIT 1) s ON true"
-            + " WHERE d.deal_id = ANY (?::numeric[])) x",
-            r.lang, me, ids.toArray(new Long[0]))));
+            + " WHERE d.deal_id = ANY (?::numeric[])"
+            + "    OR (d.deal_status_id IN (dict_id('DEAL_STATUS','MATCHING'), dict_id('DEAL_STATUS','OFFERS'))"
+            + "        AND EXISTS (SELECT 1 FROM deal_offer o WHERE o.deal_id = d.deal_id AND o.provider_agent_id = ?))) x",
+            me, r.lang, me, ids.toArray(new Long[0]), me)));
     }
 
     /** POST /api/deals/{id}/offers {price, lat?, lon?, attributes} - ручной отклик; условия проверяет БД. */

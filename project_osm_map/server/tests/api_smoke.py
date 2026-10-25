@@ -128,6 +128,16 @@ def main():
         return f"прогноз {f['price_min']}–{f['price_max']}, сделка {s['deal']}"
     step('клиент: прогноз и запрос из публикации', create)
 
+    def period_in_past():
+        r = call('POST', '/deals', s[1], {'service_id': 1001, 'lat': P[0], 'lon': P[1], 'zone_radius_m': 150,
+                                          'period_start': ts(-10), 'period_end': ts(20), 'client_price': 900}, expect=422)
+        check(r['code'] == 'PERIOD_IN_PAST', r['code'])
+        r = call('POST', '/slots', s[2], {'service_id': 1001, 'lat': P[0], 'lon': P[1],
+                                          'period_start': ts(-120), 'period_end': ts(-60), 'price_min': 600}, expect=422)
+        check(r['code'] == 'PERIOD_IN_PAST', r['code'])
+        return 'запрос с началом в прошлом и закончившееся окно отклонены'
+    step('время по Алматы: прошлое -> 422 PERIOD_IN_PAST (Р-4)', period_in_past)
+
     def provider_sees():
         reqs = call('GET', '/requests', s[2])
         mine = [x for x in reqs if x['deal_id'] == s['deal']]
@@ -150,6 +160,15 @@ def main():
         check(d['status'] == 'OFFERS' and 'agree' in d['actions'], 'нет действия agree')
         return f"интервал расстояния {offers[0]['distance_band']} м"
     step('ручной отклик; клиент видит интервал, а не точное расстояние', offer)
+
+    def my_offer():
+        req = [x for x in call('GET', '/requests', s[2]) if x['deal_id'] == s['deal']]
+        check(req, 'после отклика запрос пропал из списка поставщика')
+        mo = req[0]['my_offer']
+        check(mo and mo['status'] == 'active' and float(mo['price']) == 900, f'my_offer {mo}')
+        check(req[0]['place_mode'] == 'provider', f"place_mode {req[0]['place_mode']}")
+        return f"my_offer {mo['deal_offer_id']}: {mo['price']} тг, {mo['status']}"
+    step('поставщик: запрос с откликом остаётся в списке (my_offer)', my_offer)
 
     def agree():
         call('GET', f"/deals/{s['deal']}/routes", s[1])
