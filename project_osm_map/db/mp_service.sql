@@ -2074,6 +2074,127 @@ COMMENT ON VIEW v_provider_slot_map           IS 'Активные публик�
 COMMENT ON VIEW v_ui_options                  IS 'Варианты интерфейса для выпадающего списка: "Шаблон A / Светлая"';
 COMMENT ON VIEW v_map_cursor                  IS 'Курсоры карты по роли и режиму тестирования (SVG)';
 
+-- Поля представлений
+COMMENT ON COLUMN v_service_tree.service_id  IS 'Узел дерева услуг';
+COMMENT ON COLUMN v_service_tree.ancestor_id IS 'Предок узла (включая сам узел)';
+COMMENT ON COLUMN v_service_tree.depth       IS 'Расстояние до предка: 0 - сам узел, 1 - родитель ...';
+
+COMMENT ON COLUMN v_service_search.service_id        IS 'Узел дерева услуг';
+COMMENT ON COLUMN v_service_search.node_type         IS 'Тип узла: category, service, variant';
+COMMENT ON COLUMN v_service_search.parent_service_id IS 'Родительский узел';
+COMMENT ON COLUMN v_service_search.interface_lang_id IS 'Язык текстов';
+COMMENT ON COLUMN v_service_search.service_name      IS 'Название узла на языке';
+COMMENT ON COLUMN v_service_search.service_path      IS 'Путь в дереве: Категория / Сервис / Вариант';
+COMMENT ON COLUMN v_service_search.search_text       IS 'Текст для поиска в нижнем регистре: путь и синонимы';
+COMMENT ON COLUMN v_service_search.icon_id           IS 'Пиктограмма узла или ближайшего предка';
+
+COMMENT ON COLUMN v_service_attribute_effective.service_id            IS 'Узел дерева, для которого действует поле';
+COMMENT ON COLUMN v_service_attribute_effective.attribute_id          IS 'Атрибут';
+COMMENT ON COLUMN v_service_attribute_effective.attr_scope            IS 'Где заполняется: profile, request, offer';
+COMMENT ON COLUMN v_service_attribute_effective.is_required           IS 'Обязательное поле: 1 - да';
+COMMENT ON COLUMN v_service_attribute_effective.show_stage            IS 'Когда видно другой стороне: always, never, agreed, near';
+COMMENT ON COLUMN v_service_attribute_effective.sort_order            IS 'Порядок вывода';
+COMMENT ON COLUMN v_service_attribute_effective.defined_at_service_id IS 'Узел, на котором поле задано (сам узел или предок)';
+
+COMMENT ON COLUMN v_attribute_label.attribute_id        IS 'Атрибут';
+COMMENT ON COLUMN v_attribute_label.attribute_type      IS 'Тип и формат значения';
+COMMENT ON COLUMN v_attribute_label.parent_attribute_id IS 'Группа или список, в который входит атрибут';
+COMMENT ON COLUMN v_attribute_label.sort_order          IS 'Порядок вывода';
+COMMENT ON COLUMN v_attribute_label.interface_lang_id   IS 'Язык подписи';
+COMMENT ON COLUMN v_attribute_label.label               IS 'Подпись поля на языке';
+COMMENT ON COLUMN v_attribute_label.icon_id             IS 'Пиктограмма поля';
+COMMENT ON COLUMN v_attribute_label.icon_code           IS 'Код пиктограммы';
+
+COMMENT ON COLUMN v_agent_available_service.agent_id   IS 'Агент';
+COMMENT ON COLUMN v_agent_available_service.service_id IS 'Доступный узел дерева услуг';
+
+COMMENT ON COLUMN v_subscription_charge.subscription_id      IS 'Платный период подписки';
+COMMENT ON COLUMN v_subscription_charge.agent_id             IS 'Агент (компания)';
+COMMENT ON COLUMN v_subscription_charge.package_id           IS 'Пакет';
+COMMENT ON COLUMN v_subscription_charge.price                IS 'Цена пакета';
+COMMENT ON COLUMN v_subscription_charge.included_subagents   IS 'Субагентов в цене пакета';
+COMMENT ON COLUMN v_subscription_charge.extra_subagent_price IS 'Цена субагента сверх пакета';
+COMMENT ON COLUMN v_subscription_charge.subagents            IS 'Активных субагентов у компании';
+COMMENT ON COLUMN v_subscription_charge.charge               IS 'Начисление: цена пакета + субагенты сверх включенных';
+
+COMMENT ON COLUMN v_agent_finance_daily.agent_id  IS 'Агент';
+COMMENT ON COLUMN v_agent_finance_daily.role_id   IS 'Роль (для сделок); NULL - рефералы и абонплата';
+COMMENT ON COLUMN v_agent_finance_daily.service_id IS 'Узел уровня "сервис" (для сделок)';
+COMMENT ON COLUMN v_agent_finance_daily.source    IS 'Источник: deal, referral, subscription';
+COMMENT ON COLUMN v_agent_finance_daily.direction IS 'Направление: income или expense';
+COMMENT ON COLUMN v_agent_finance_daily.fin_date  IS 'Дата операции';
+COMMENT ON COLUMN v_agent_finance_daily.cnt       IS 'Число операций';
+COMMENT ON COLUMN v_agent_finance_daily.amount    IS 'Сумма операций';
+
+COMMENT ON COLUMN v_company_finance_daily.company_agent_id IS 'Компания';
+COMMENT ON COLUMN v_company_finance_daily.subagent_id      IS 'Субагент компании';
+COMMENT ON COLUMN v_company_finance_daily.role_id          IS 'Роль (для сделок)';
+COMMENT ON COLUMN v_company_finance_daily.service_id       IS 'Узел уровня "сервис"';
+COMMENT ON COLUMN v_company_finance_daily.source           IS 'Источник: deal, referral, subscription';
+COMMENT ON COLUMN v_company_finance_daily.direction        IS 'Направление: income или expense';
+COMMENT ON COLUMN v_company_finance_daily.fin_date         IS 'Дата операции';
+COMMENT ON COLUMN v_company_finance_daily.cnt              IS 'Число операций';
+COMMENT ON COLUMN v_company_finance_daily.amount           IS 'Сумма операций';
+
+COMMENT ON COLUMN v_deal_offer_list.deal_id           IS 'Сделка';
+COMMENT ON COLUMN v_deal_offer_list.service_id        IS 'Узел дерева услуг сделки';
+COMMENT ON COLUMN v_deal_offer_list.position          IS 'Позиция в списке клиента по offer_sort_1..3';
+COMMENT ON COLUMN v_deal_offer_list.deal_offer_id     IS 'Отклик';
+COMMENT ON COLUMN v_deal_offer_list.provider_agent_id IS 'Поставщик';
+COMMENT ON COLUMN v_deal_offer_list.pseudonym         IS 'Псевдоним поставщика (имя - после согласования)';
+COMMENT ON COLUMN v_deal_offer_list.rating            IS 'Рейтинг поставщика по сервису на дату сделки';
+COMMENT ON COLUMN v_deal_offer_list.offer_price       IS 'Цена предложения';
+COMMENT ON COLUMN v_deal_offer_list.offer_status      IS 'Статус отклика: active или selected';
+COMMENT ON COLUMN v_deal_offer_list.offer_mode        IS 'Режим: auto или manual';
+COMMENT ON COLUMN v_deal_offer_list.spot_number       IS 'Номер места (частная парковка)';
+COMMENT ON COLUMN v_deal_offer_list.is_exact          IS 'Точка точная (выбранный отклик согласованной сделки)';
+COMMENT ON COLUMN v_deal_offer_list.show_lat          IS 'Широта для карты: смещенная до согласования, точная после';
+COMMENT ON COLUMN v_deal_offer_list.show_lon          IS 'Долгота для карты';
+COMMENT ON COLUMN v_deal_offer_list.distance_m        IS 'Точное расстояние до точки клиента, м - только когда точка точная';
+COMMENT ON COLUMN v_deal_offer_list.distance_band     IS 'Интервал расстояния до согласования: 0-50, 50-100, 100-200, 200+';
+COMMENT ON COLUMN v_deal_offer_list.marker_label      IS 'Подпись точки на карте: псевдоним · рейтинг · цена';
+
+COMMENT ON COLUMN v_deal_offer_route.deal_id       IS 'Сделка';
+COMMENT ON COLUMN v_deal_offer_route.deal_offer_id IS 'Выбранный отклик';
+COMMENT ON COLUMN v_deal_offer_route.provider_code IS 'Сервис карт: YANDEX, 2GIS, GOOGLE';
+COMMENT ON COLUMN v_deal_offer_route.sort_order    IS 'Порядок кнопок';
+COMMENT ON COLUMN v_deal_offer_route.route_url     IS 'Ссылка на маршрут от точки клиента до точного места';
+
+COMMENT ON COLUMN v_deal_candidates.deal_id           IS 'Открытая сделка (MATCHING или OFFERS)';
+COMMENT ON COLUMN v_deal_candidates.provider_agent_id IS 'Поставщик, которому подходит сделка и который еще не откликнулся';
+
+COMMENT ON COLUMN v_provider_slot_map.slot_id        IS 'Публикация';
+COMMENT ON COLUMN v_provider_slot_map.agent_id       IS 'Поставщик';
+COMMENT ON COLUMN v_provider_slot_map.service_id     IS 'Узел дерева услуг';
+COMMENT ON COLUMN v_provider_slot_map.pseudonym      IS 'Псевдоним поставщика';
+COMMENT ON COLUMN v_provider_slot_map.rating         IS 'Рейтинг поставщика по сервису';
+COMMENT ON COLUMN v_provider_slot_map.is_testing     IS 'Поставщик в режиме тестирования (курсор с шестеренкой)';
+COMMENT ON COLUMN v_provider_slot_map.price_min      IS 'Минимальная цена по публикации';
+COMMENT ON COLUMN v_provider_slot_map.period_start   IS 'Начало окна доступности';
+COMMENT ON COLUMN v_provider_slot_map.period_end     IS 'Окончание окна доступности';
+COMMENT ON COLUMN v_provider_slot_map.show_lat       IS 'Широта для карты (смещена на approx_offset_m)';
+COMMENT ON COLUMN v_provider_slot_map.show_lon       IS 'Долгота для карты (смещена)';
+COMMENT ON COLUMN v_provider_slot_map.radius_m       IS 'Радиус точки или коридор маршрута rA, м';
+COMMENT ON COLUMN v_provider_slot_map.geo_to_lat     IS 'Широта точки Б маршрута';
+COMMENT ON COLUMN v_provider_slot_map.geo_to_lon     IS 'Долгота точки Б маршрута';
+COMMENT ON COLUMN v_provider_slot_map.radius_to_m    IS 'Радиус rB вокруг точки Б, м';
+COMMENT ON COLUMN v_provider_slot_map.route_polyline IS 'Маршрут А -> Б (encoded polyline)';
+COMMENT ON COLUMN v_provider_slot_map.route_length_m IS 'Длина маршрута, м';
+COMMENT ON COLUMN v_provider_slot_map.marker_label   IS 'Подпись точки: псевдоним · рейтинг · цена от';
+
+COMMENT ON COLUMN v_ui_options.template_code     IS 'Шаблон интерфейса: A, B, C';
+COMMENT ON COLUMN v_ui_options.scheme_code       IS 'Цветовая схема: A_LIGHT, A_DARK ...';
+COMMENT ON COLUMN v_ui_options.is_dark           IS 'Темная схема (фильтр "Светлые / Темные")';
+COMMENT ON COLUMN v_ui_options.interface_lang_id IS 'Язык подписей';
+COMMENT ON COLUMN v_ui_options.template_name     IS 'Название шаблона на языке';
+COMMENT ON COLUMN v_ui_options.scheme_name       IS 'Название схемы на языке';
+COMMENT ON COLUMN v_ui_options.option_label      IS 'Подпись в выпадающем списке: "Шаблон A / Светлая"';
+COMMENT ON COLUMN v_ui_options.sort_order        IS 'Порядок в списке';
+
+COMMENT ON COLUMN v_map_cursor.cursor_code IS 'Код курсора: CLIENT, PROVIDER, CLIENT_TEST, PROVIDER_TEST';
+COMMENT ON COLUMN v_map_cursor.icon_code   IS 'Код пиктограммы';
+COMMENT ON COLUMN v_map_cursor.icon_svg    IS 'SVG курсора (цвет зашит)';
+
 -- Функции: описание (что делает и методика; то же - комментарием в теле функции)
 DO $$
 DECLARE

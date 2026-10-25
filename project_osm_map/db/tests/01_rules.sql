@@ -116,6 +116,23 @@ SELECT pg_temp.run_test('T12 Неверный пароль входа', 'ok', $t
     PERFORM pg_temp.check(mp_service.agent_login_check('нет_такого', 'x') IS NULL, 'вход несуществующего логина');
 $t$);
 
+SELECT pg_temp.run_test('T13 У всех таблиц, представлений, их полей и функций есть описание (правило CLAUDE.md)', 'ok', $t$
+    PERFORM pg_temp.check(NOT EXISTS (
+        SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'mp_service' AND c.relkind IN ('r','v','m') AND obj_description(c.oid, 'pg_class') IS NULL),
+        'объект без описания');
+    PERFORM pg_temp.check(NOT EXISTS (
+        SELECT 1 FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'mp_service' AND c.relkind IN ('r','v','m') AND a.attnum > 0 AND NOT a.attisdropped
+          AND col_description(c.oid, a.attnum) IS NULL),
+        'поле без описания');
+    PERFORM pg_temp.check(NOT EXISTS (
+        SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'mp_service'
+          AND (obj_description(p.oid, 'pg_proc') IS NULL OR position('-- Что делает:' IN p.prosrc) = 0)),
+        'функция без описания или без комментария в теле');
+$t$);
+
 -- ---------------------------------------------------------------------
 -- Сценарии приемки (раздел 7 алгоритма)
 -- ---------------------------------------------------------------------
