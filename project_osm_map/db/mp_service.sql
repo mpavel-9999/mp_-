@@ -1640,6 +1640,33 @@ RETURNS boolean LANGUAGE sql STABLE SET search_path = mp_service AS $$
 $$;
 
 -- Отмена стороной сделки (п. 5.2-5.4); итоговый статус решает БД. Возвращает код статуса.
+CREATE FUNCTION deal_cancel_mode(p_deal_id numeric, p_agent_id numeric)
+RETURNS text LANGUAGE plpgsql STABLE SET search_path = mp_service AS $$
+    -- Что делает: Каким будет итог отмены сделки агентом прямо сейчас (п. 5.2-5.4); NULL - отменить нельзя.
+    -- Методика: Только сторона сделки. До согласования - CANCEL_FREE; AGREED в окне cancel_free_min или при опоздании другой стороны - CANCEL_FREE; AGREED/CONTACT в остальных случаях - CANCEL_CLIENT или CANCEL_PROVIDER по стороне; финальные статусы - NULL. Одно правило для deal_cancel и для предупреждения в приложении.
+DECLARE
+    d        deal%ROWTYPE;
+    v_status text;
+BEGIN
+    SELECT * INTO d FROM deal WHERE deal_id = p_deal_id;
+    IF NOT FOUND OR p_agent_id IS NULL OR p_agent_id NOT IN (d.client_agent_id, coalesce(d.provider_agent_id, -1)) THEN
+        RETURN NULL;
+    END IF;
+    SELECT dict_code INTO v_status FROM dictionary WHERE dict_id = d.deal_status_id;
+
+    IF v_status IN ('INIT','MATCHING','OFFERS') THEN
+        RETURN 'CANCEL_FREE';
+    ELSIF v_status = 'AGREED'
+          AND (now() <= d.date_agreed + make_interval(mins => get_setting(d.service_id, 'cancel_free_min')::int)
+               OR deal_other_side_late(p_deal_id, p_agent_id)) THEN
+        RETURN 'CANCEL_FREE';
+    ELSIF v_status IN ('AGREED','CONTACT') THEN
+        RETURN CASE WHEN p_agent_id = d.client_agent_id THEN 'CANCEL_CLIENT' ELSE 'CANCEL_PROVIDER' END;
+    END IF;
+    RETURN NULL;
+END
+$$;
+
 CREATE FUNCTION deal_cancel(p_deal_id numeric, p_reason_id numeric DEFAULT NULL, p_comment text DEFAULT NULL)
 RETURNS text LANGUAGE plpgsql SET search_path = mp_service AS $$
     -- Что делает: Отмена сделки стороной; итоговый статус решает БД (п. 5.2-5.4).
@@ -1657,15 +1684,9 @@ BEGIN
     END IF;
     SELECT dict_code INTO v_status FROM dictionary WHERE dict_id = d.deal_status_id;
 
-    IF v_status IN ('INIT','MATCHING','OFFERS') THEN
-        v_new := 'CANCEL_FREE';
-    ELSIF v_status = 'AGREED'
-          AND (now() <= d.date_agreed + make_interval(mins => get_setting(d.service_id, 'cancel_free_min')::int)
-               OR deal_other_side_late(p_deal_id, v_agent)) THEN
-        v_new := 'CANCEL_FREE';
-    ELSIF v_status IN ('AGREED','CONTACT') THEN
-        v_new := CASE WHEN v_agent = d.client_agent_id THEN 'CANCEL_CLIENT' ELSE 'CANCEL_PROVIDER' END;
-    ELSE
+    -- итог отмены - по тем же правилам, что видит приложение до нажатия (deal_cancel_mode)
+    v_new := deal_cancel_mode(p_deal_id, v_agent);
+    IF v_new IS NULL THEN
         RAISE EXCEPTION 'Сделку в статусе % отменить нельзя', v_status;
     END IF;
 
@@ -2236,7 +2257,8 @@ BEGIN
     ('make_auto_offers', 'Создает автоотклики на сделку всех подходящих поставщиков с is_auto = 1 (п. 3.1). Берет кандидатов из v_deal_candidates, цену считает auto_offer_price, точку - из публикации или настроек; маршрутные сервисы пропускает (их ведет сервер).'),
     ('deal_agree', 'Согласование отклика клиентом в одной транзакции (п. 4.4). Блокирует сделку, проверяет клиента, активность отклика и занятость поставщика; выбранный отклик - selected, остальные - declined; сделке поставщик, цена и статус AGREED; при исчерпании лимита снимает другие отклики поставщика на это время и уведомляет их клиентов.'),
     ('deal_other_side_late', 'Опаздывает ли другая сторона сделки (для бесплатной отмены, В-3). Период начался, а свежее положение другой стороны дальше near_radius_m от места встречи (точка отклика для place_mode = provider, иначе точка клиента).'),
-    ('deal_cancel', 'Отмена сделки стороной; итоговый статус решает БД (п. 5.2-5.4). До согласования, в окне cancel_free_min до CONTACT или при опоздании другой стороны - CANCEL_FREE; иначе CANCEL_CLIENT / CANCEL_PROVIDER с обязательной причиной; активные отклики истекают; отмена после CONTACT - эпизод фрода NEAR_CANCEL.'),
+    ('deal_cancel_mode', 'Каким будет итог отмены сделки агентом прямо сейчас (п. 5.2-5.4): CANCEL_FREE, CANCEL_CLIENT, CANCEL_PROVIDER или NULL - отменить нельзя. До согласования, в окне cancel_free_min до CONTACT или при опоздании другой стороны - бесплатно; иначе штраф стороне-инициатору. Одно правило для deal_cancel и предупреждения в приложении (GET /deals/{id}, поле cancel_mode).'),
+    ('deal_cancel', 'Отмена сделки стороной; итоговый статус решает БД (п. 5.2-5.4). Итог берется из deal_cancel_mode (бесплатно или штраф инициатору), для отмен со штрафом причина обязательна; активные отклики истекают; отмена после CONTACT - эпизод фрода NEAR_CANCEL.'),
     ('run_deal_jobs', 'Плановые задания по сделкам, вызывает сервер раз в минуту от имени системы (п. 4.6, 5.5). Истечение открытых сделок к началу периода; CONTACT при сближении сторон; вопрос "Услуга оказана?" после периода; NOT_CLOSED через сутки с сигналом антифроду, если стороны встречались; закрытие прошедших публикаций. Возвращает счетчики.')
         ) v(name, descr)
         JOIN pg_proc p ON p.proname = v.name
@@ -2546,7 +2568,32 @@ INSERT INTO g_src VALUES
 (50087,'ui.closed_ok',        NULL,'Сделка закрыта','Deal closed',NULL),
 (50088,'ui.exact_point',      17,'Точное место','Exact place',NULL),
 (50089,'ui.class',            2,'Класс','Class',NULL),
-(50090,'ui.spot_number',      1,'Номер места','Space number',NULL);
+(50090,'ui.spot_number',      1,'Номер места','Space number',NULL),
+-- Э4: экраны клиента
+(50091,'ui.home',             NULL,'Главная','Home',NULL),
+(50092,'ui.role_admin',       NULL,'Администратор','Administrator',NULL),
+(50093,'ui.role_company',     NULL,'Компания','Company',NULL),
+(50094,'ui.role_subagent',    NULL,'Субагент','Subagent',NULL),
+(50095,'ui.waiting_offers',   NULL,'Ждём отклики поставщиков','Waiting for provider offers',NULL),
+(50096,'ui.service',          NULL,'Услуга','Service',NULL),
+(50097,'ui.variant',          NULL,'Вариант','Option',NULL),
+(50098,'ui.choose_point',     NULL,'Нажмите на карту, чтобы выбрать место','Tap the map to choose the place',NULL),
+(50099,'ui.any',              NULL,'Любой','Any',NULL),
+(50100,'ui.price',            NULL,'Цена','Price',NULL),
+(50101,'ui.distance',         NULL,'Расстояние','Distance',NULL),
+(50102,'ui.pending_reviews',  NULL,'Оцените завершённые сделки','Rate your finished deals',NULL),
+(50103,'ui.counterpart',      NULL,'Вторая сторона','Other side',NULL),
+(50104,'ui.request_fields',   NULL,'Детали запроса','Request details',NULL),
+(50105,'ui.open_route',       NULL,'Открыть маршрут','Open route',NULL),
+(50106,'ui.score',            NULL,'Оценка','Score',NULL),
+(50107,'ui.err.review_required',     NULL,'Сначала оцените прошлые сделки','Rate your previous deals first',NULL),
+(50108,'ui.err.no_service_access',   NULL,'Услуга недоступна по вашей подписке','This service is not available in your subscription',NULL),
+(50109,'ui.err.required_fields',     NULL,'Заполните обязательные поля','Fill in the required fields',NULL),
+(50110,'ui.err.offer_not_active',    NULL,'Отклик уже недоступен','This offer is no longer available',NULL),
+(50111,'ui.err.busy',                NULL,'Поставщик уже занят на это время','The provider is busy at this time',NULL),
+(50112,'ui.err.routing_unavailable', NULL,'Маршруты временно недоступны','Routing is temporarily unavailable',NULL),
+(50113,'ui.err.no_route',            NULL,'Не удалось построить маршрут','Could not build a route',NULL),
+(50114,'ui.err.rule',                NULL,'Действие сейчас недоступно','This action is not available now',NULL);
 
 INSERT INTO glossary (glossary_id, glossary_code, icon_id) SELECT id, code, icon FROM g_src;
 INSERT INTO glossary_text (glossary_id, interface_lang_id, text_value, search_text)

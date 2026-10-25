@@ -69,10 +69,13 @@ class ProfileViewModel(private val session: SessionRepository, lang: Flow<String
     }
 }
 
-/** Роль агента -> ключ глоссария; для остальных ролей (ADMIN, SUBAGENT) - код роли. */
+/** Роль агента -> ключ глоссария; неизвестная роль - её код. */
 private fun roleKey(role: String): String? = when (role) {
     "CLIENT" -> "ui.role_client"
     "PROVIDER" -> "ui.role_provider"
+    "ADMIN" -> "ui.role_admin"
+    "COMPANY" -> "ui.role_company"
+    "SUBAGENT" -> "ui.role_subagent"
     else -> null
 }
 

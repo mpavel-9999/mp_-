@@ -1,15 +1,15 @@
 {
   "CLAUDE.md": {
-    "mtime": 1792935488.8216958,
-    "seen": 1792935795.9256744,
-    "ast_hash": "4180f8d2ede759658ac04119c36696ca",
-    "semantic_hash": "4180f8d2ede759658ac04119c36696ca"
+    "mtime": 1792941747.7317822,
+    "seen": 1792957382.1035385,
+    "ast_hash": "5b650f705499d00b490161ad6d4deb5c",
+    "semantic_hash": "5b650f705499d00b490161ad6d4deb5c"
   },
   "project_osm_map/app/build.gradle.kts": {
-    "mtime": 1792933868.5417366,
-    "seen": 1792935795.9256744,
-    "ast_hash": "23e0e75d99ccc7464cd54c99a88e7b2c",
-    "semantic_hash": "23e0e75d99ccc7464cd54c99a88e7b2c"
+    "mtime": 1792938840.2096715,
+    "seen": 1792957382.1035385,
+    "ast_hash": "03eccdc6986544f5cd2ccb187107b848",
+    "semantic_hash": "03eccdc6986544f5cd2ccb187107b848"
   },
   "project_osm_map/app/src/main/java/ru/mpavel/osmmap/MainActivity.kt": {
     "mtime": 1792934173.1970842,
@@ -48,10 +48,10 @@
     "semantic_hash": "f5ea6348b8f774cfebae7e9c24fa4d67"
   },
   "project_osm_map/README.md": {
-    "mtime": 1792935465.5628555,
-    "seen": 1792935795.9256744,
-    "ast_hash": "0b6ebd47999bd0206c86dcb853492c01",
-    "semantic_hash": "0b6ebd47999bd0206c86dcb853492c01"
+    "mtime": 1792941747.7997823,
+    "seen": 1792957382.1035385,
+    "ast_hash": "20aa00254ee33baf932836f5d6766b9a",
+    "semantic_hash": "20aa00254ee33baf932836f5d6766b9a"
   },
   "project_osm_map/docs/TZ_marketplace.md": {
     "mtime": 1792862534.8093543,
@@ -60,10 +60,10 @@
     "semantic_hash": "b985f1aabfa574cc153d4b2e98da76cf"
   },
   "project_osm_map/db/mp_service.sql": {
-    "mtime": 1792925854.5635743,
-    "seen": 1792928956.1222942,
-    "ast_hash": "502f343ccec98115bbc51c1283424b46",
-    "semantic_hash": "502f343ccec98115bbc51c1283424b46"
+    "mtime": 1792938629.3205004,
+    "seen": 1792957382.1035385,
+    "ast_hash": "297e0f2465ba33e8e915216ee49ebb0c",
+    "semantic_hash": "297e0f2465ba33e8e915216ee49ebb0c"
   },
   "project_osm_map/docs/v0.7/01_deal_algorithm.md": {
     "mtime": 1792923057.9614146,
@@ -78,10 +78,10 @@
     "semantic_hash": "8f32b53d187a5bf3cc2b1bea9e81f24b"
   },
   "project_osm_map/docs/v0.7/03_implementation_spec.md": {
-    "mtime": 1792923057.963828,
-    "seen": 1792924429.7033024,
-    "ast_hash": "4f1935612bc9187cbc733f2c0b775ed9",
-    "semantic_hash": "4f1935612bc9187cbc733f2c0b775ed9"
+    "mtime": 1792941747.8577795,
+    "seen": 1792957382.1035385,
+    "ast_hash": "76b6a3752a5438c89cb697f7b541f9d2",
+    "semantic_hash": "76b6a3752a5438c89cb697f7b541f9d2"
   },
   "project_osm_map/docs/v0.7/04_product_architecture.md": {
     "mtime": 1792923057.9648328,
@@ -132,10 +132,10 @@
     "semantic_hash": "77cd7179eda1877784d13fb7f225e1de"
   },
   "project_osm_map/server/src/main/java/ru/mpavel/osmmap/server/DealApi.java": {
-    "mtime": 1792928437.0340896,
-    "seen": 1792928956.1222942,
-    "ast_hash": "1cb41066b802f97038735d16943b0e4e",
-    "semantic_hash": "1cb41066b802f97038735d16943b0e4e"
+    "mtime": 1792938691.5890918,
+    "seen": 1792957382.1035385,
+    "ast_hash": "7912a9d0a1aa16c5279b00312bc95c4b",
+    "semantic_hash": "7912a9d0a1aa16c5279b00312bc95c4b"
   },
   "project_osm_map/server/src/main/java/ru/mpavel/osmmap/server/Http.java": {
     "mtime": 1792925336.2643158,
@@ -174,22 +174,22 @@
     "semantic_hash": "4ede52f3ea01fc6976e20f2602ca592f"
   },
   "project_osm_map/server/openapi.yaml": {
-    "mtime": 1792928241.0887785,
-    "seen": 1792928956.1222942,
-    "ast_hash": "c1b1c65338dd90b4b4b9dc3401f2d6bd",
-    "semantic_hash": "c1b1c65338dd90b4b4b9dc3401f2d6bd"
+    "mtime": 1792938691.652658,
+    "seen": 1792957382.1035385,
+    "ast_hash": "e7cb75a060e0c26157d829bafeb81c33",
+    "semantic_hash": "e7cb75a060e0c26157d829bafeb81c33"
   },
   "project_osm_map/app/src/main/java/ru/mpavel/osmmap/App.kt": {
-    "mtime": 1792934222.7786674,
-    "seen": 1792935795.9256744,
-    "ast_hash": "275a3ceb934403871d95851b2c7343b7",
-    "semantic_hash": "275a3ceb934403871d95851b2c7343b7"
+    "mtime": 1792940972.303612,
+    "seen": 1792957382.1035385,
+    "ast_hash": "203ccdc8768dc06e4fe6c99c634dde13",
+    "semantic_hash": "203ccdc8768dc06e4fe6c99c634dde13"
   },
   "project_osm_map/app/src/main/java/ru/mpavel/osmmap/MpApp.kt": {
-    "mtime": 1792934173.121115,
-    "seen": 1792935795.9256744,
-    "ast_hash": "85a7eb8b01224962155aa2ff6a1b8ff9",
-    "semantic_hash": "85a7eb8b01224962155aa2ff6a1b8ff9"
+    "mtime": 1792938893.40793,
+    "seen": 1792957382.1035385,
+    "ast_hash": "57bc96f20cee69ef99f002b2505153b7",
+    "semantic_hash": "57bc96f20cee69ef99f002b2505153b7"
   },
   "project_osm_map/app/src/main/java/ru/mpavel/osmmap/core/config/ConfigRepository.kt": {
     "mtime": 1792935063.8190224,
@@ -240,10 +240,10 @@
     "semantic_hash": "b354fd40a11d33770d960341d11c1afd"
   },
   "project_osm_map/app/src/main/java/ru/mpavel/osmmap/data/Models.kt": {
-    "mtime": 1792934593.371737,
-    "seen": 1792935795.9256744,
-    "ast_hash": "5ac7d1cc64f4251da6fd42bbe9ee30bd",
-    "semantic_hash": "5ac7d1cc64f4251da6fd42bbe9ee30bd"
+    "mtime": 1792939287.3518846,
+    "seen": 1792957382.1035385,
+    "ast_hash": "798e2728ab2a21ee5e7149c565ba7d55",
+    "semantic_hash": "798e2728ab2a21ee5e7149c565ba7d55"
   },
   "project_osm_map/app/src/main/java/ru/mpavel/osmmap/data/Repositories.kt": {
     "mtime": 1792934287.7783034,
@@ -252,16 +252,16 @@
     "semantic_hash": "d271f1a2348794f4def3381dd7a7da99"
   },
   "project_osm_map/app/src/main/java/ru/mpavel/osmmap/feature/home/HomeScreen.kt": {
-    "mtime": 1792935063.6570225,
-    "seen": 1792935795.9256744,
-    "ast_hash": "8fd8cff9b0590c75a5f4cc3d5985f616",
-    "semantic_hash": "8fd8cff9b0590c75a5f4cc3d5985f616"
+    "mtime": 1792940960.1847632,
+    "seen": 1792957382.1035385,
+    "ast_hash": "f1bfa6ef1a9d8f322dc537f7d15ff481",
+    "semantic_hash": "f1bfa6ef1a9d8f322dc537f7d15ff481"
   },
   "project_osm_map/app/src/main/java/ru/mpavel/osmmap/feature/home/HomeViewModel.kt": {
-    "mtime": 1792935063.5710227,
-    "seen": 1792935795.9256744,
-    "ast_hash": "370d98957b308a0ea04d707cd86c86e1",
-    "semantic_hash": "370d98957b308a0ea04d707cd86c86e1"
+    "mtime": 1792940960.0546823,
+    "seen": 1792957382.1035385,
+    "ast_hash": "c3a50bb5447cab7b863e8415718b9d0e",
+    "semantic_hash": "c3a50bb5447cab7b863e8415718b9d0e"
   },
   "project_osm_map/app/src/main/java/ru/mpavel/osmmap/feature/login/LoginScreen.kt": {
     "mtime": 1792935322.7841277,
@@ -270,10 +270,10 @@
     "semantic_hash": "02e24ef22890e1174eca5f37d97cf851"
   },
   "project_osm_map/app/src/main/java/ru/mpavel/osmmap/feature/profile/ProfileScreen.kt": {
-    "mtime": 1792935064.006545,
-    "seen": 1792935795.9256744,
-    "ast_hash": "8661bbf1bc01f3832f88e5254110acae",
-    "semantic_hash": "8661bbf1bc01f3832f88e5254110acae"
+    "mtime": 1792939368.6086743,
+    "seen": 1792957382.1035385,
+    "ast_hash": "83d335fc36ba3676e41566c8501bc535",
+    "semantic_hash": "83d335fc36ba3676e41566c8501bc535"
   },
   "project_osm_map/app/src/main/java/ru/mpavel/osmmap/feature/settings/SettingsScreen.kt": {
     "mtime": 1792934391.5254292,
@@ -282,40 +282,40 @@
     "semantic_hash": "5a1e699a991b025f4387b385f374a814"
   },
   "project_osm_map/app/src/main/java/ru/mpavel/osmmap/ui/common/Common.kt": {
-    "mtime": 1792934186.1590796,
-    "seen": 1792935795.9256744,
-    "ast_hash": "a41b82a6174bbe09232118f2b693272a",
-    "semantic_hash": "a41b82a6174bbe09232118f2b693272a"
+    "mtime": 1792938876.9238417,
+    "seen": 1792957382.1035385,
+    "ast_hash": "c5ab3f9473e36f46c4be61d955e0b088",
+    "semantic_hash": "c5ab3f9473e36f46c4be61d955e0b088"
   },
   "project_osm_map/app/src/main/java/ru/mpavel/osmmap/ui/map/MpMap.kt": {
-    "mtime": 1792934771.1862729,
-    "seen": 1792935795.9256744,
-    "ast_hash": "c0848901819c10b2696654d224301fa0",
-    "semantic_hash": "c0848901819c10b2696654d224301fa0"
+    "mtime": 1792938855.023583,
+    "seen": 1792957382.1035385,
+    "ast_hash": "d63ee1aeccde0dc284acf723cf368e2d",
+    "semantic_hash": "d63ee1aeccde0dc284acf723cf368e2d"
   },
   "project_osm_map/app/src/main/java/ru/mpavel/osmmap/ui/template/AppFrame.kt": {
-    "mtime": 1792934222.8607345,
-    "seen": 1792935795.9256744,
-    "ast_hash": "479cc47deaf207ed4f8acc42f0bdc7f3",
-    "semantic_hash": "479cc47deaf207ed4f8acc42f0bdc7f3"
+    "mtime": 1792940960.9289775,
+    "seen": 1792957382.1035385,
+    "ast_hash": "b704bc31ff90e329ae646e17276becb0",
+    "semantic_hash": "b704bc31ff90e329ae646e17276becb0"
   },
   "project_osm_map/app/src/main/java/ru/mpavel/osmmap/ui/template/a/HomeA.kt": {
-    "mtime": 1792934771.3769257,
-    "seen": 1792935795.9256744,
-    "ast_hash": "34762912c9847ab12a26f563eadb6b57",
-    "semantic_hash": "34762912c9847ab12a26f563eadb6b57"
+    "mtime": 1792939033.4413488,
+    "seen": 1792957382.1035385,
+    "ast_hash": "c0748b828af48f87a7f04e1fa91a60ba",
+    "semantic_hash": "c0748b828af48f87a7f04e1fa91a60ba"
   },
   "project_osm_map/app/src/main/java/ru/mpavel/osmmap/ui/template/b/HomeB.kt": {
-    "mtime": 1792934319.5945997,
-    "seen": 1792935795.9256744,
-    "ast_hash": "c08c33ada8c27e282ffb2ef01a236113",
-    "semantic_hash": "c08c33ada8c27e282ffb2ef01a236113"
+    "mtime": 1792939033.534353,
+    "seen": 1792957382.1035385,
+    "ast_hash": "315dc57a6402965cd0612e596a42df98",
+    "semantic_hash": "315dc57a6402965cd0612e596a42df98"
   },
   "project_osm_map/app/src/main/java/ru/mpavel/osmmap/ui/template/c/HomeC.kt": {
-    "mtime": 1792934319.6686003,
-    "seen": 1792935795.9256744,
-    "ast_hash": "db7cd63b072993b3bf5fa167d6ecee31",
-    "semantic_hash": "db7cd63b072993b3bf5fa167d6ecee31"
+    "mtime": 1792939033.602357,
+    "seen": 1792957382.1035385,
+    "ast_hash": "b8322c0c65b60aeb05d059dbd3f39168",
+    "semantic_hash": "b8322c0c65b60aeb05d059dbd3f39168"
   },
   "project_osm_map/app/src/test/java/ru/mpavel/osmmap/ApiModelsTest.kt": {
     "mtime": 1792934538.5726993,
@@ -334,5 +334,119 @@
     "seen": 1792935795.9256744,
     "ast_hash": "9ef8f0675db1e743a3c8e64fc49d271f",
     "semantic_hash": "9ef8f0675db1e743a3c8e64fc49d271f"
+  },
+  "project_osm_map/app/src/main/java/ru/mpavel/osmmap/core/geo/Polyline.kt": {
+    "mtime": 1792938840.3301258,
+    "seen": 1792957382.1035385,
+    "ast_hash": "588bfd46899390e242d2c5a305040838",
+    "semantic_hash": "588bfd46899390e242d2c5a305040838"
+  },
+  "project_osm_map/app/src/main/java/ru/mpavel/osmmap/core/notify/NotificationCenter.kt": {
+    "mtime": 1792938893.2859292,
+    "seen": 1792957382.1035385,
+    "ast_hash": "73a28b580361010b16bb73f54169c3e8",
+    "semantic_hash": "73a28b580361010b16bb73f54169c3e8"
+  },
+  "project_osm_map/app/src/main/java/ru/mpavel/osmmap/core/time/Times.kt": {
+    "mtime": 1792938840.272126,
+    "seen": 1792957382.1035385,
+    "ast_hash": "3801d04b8ce7ba562aeaca5fcd2e5dee",
+    "semantic_hash": "3801d04b8ce7ba562aeaca5fcd2e5dee"
+  },
+  "project_osm_map/app/src/main/java/ru/mpavel/osmmap/feature/deal/DealScreen.kt": {
+    "mtime": 1792939816.235449,
+    "seen": 1792957382.1035385,
+    "ast_hash": "8b5aa511f6c3f522a5101fe65e49e7a2",
+    "semantic_hash": "8b5aa511f6c3f522a5101fe65e49e7a2"
+  },
+  "project_osm_map/app/src/main/java/ru/mpavel/osmmap/feature/deal/DealViewModel.kt": {
+    "mtime": 1792941106.6930356,
+    "seen": 1792957382.1035385,
+    "ast_hash": "cf2c927277dc0998887a84211212722e",
+    "semantic_hash": "cf2c927277dc0998887a84211212722e"
+  },
+  "project_osm_map/app/src/main/java/ru/mpavel/osmmap/feature/deals/DealsScreen.kt": {
+    "mtime": 1792939356.55653,
+    "seen": 1792957382.1035385,
+    "ast_hash": "5f7ae49e3221749c968d482332a2f327",
+    "semantic_hash": "5f7ae49e3221749c968d482332a2f327"
+  },
+  "project_osm_map/app/src/main/java/ru/mpavel/osmmap/feature/request/RequestScreen.kt": {
+    "mtime": 1792941608.2019663,
+    "seen": 1792957382.1035385,
+    "ast_hash": "d2a79dc4fa7747e277993c4f49c66b19",
+    "semantic_hash": "d2a79dc4fa7747e277993c4f49c66b19"
+  },
+  "project_osm_map/app/src/main/java/ru/mpavel/osmmap/feature/request/RequestViewModel.kt": {
+    "mtime": 1792939090.3390844,
+    "seen": 1792957382.1035385,
+    "ast_hash": "22ebb44a08415121ec48c5ad898d6fde",
+    "semantic_hash": "22ebb44a08415121ec48c5ad898d6fde"
+  },
+  "project_osm_map/app/src/main/java/ru/mpavel/osmmap/feature/review/ReviewScreen.kt": {
+    "mtime": 1792939356.457701,
+    "seen": 1792957382.1035385,
+    "ast_hash": "e7655ac2d0f2c43c920e55128d3995ed",
+    "semantic_hash": "e7655ac2d0f2c43c920e55128d3995ed"
+  },
+  "project_osm_map/app/src/main/java/ru/mpavel/osmmap/ui/common/DateTimeField.kt": {
+    "mtime": 1792938876.9888425,
+    "seen": 1792957382.1035385,
+    "ast_hash": "e781919fb8b33f290c3a232f06371a28",
+    "semantic_hash": "e781919fb8b33f290c3a232f06371a28"
+  },
+  "project_osm_map/app/src/main/java/ru/mpavel/osmmap/ui/template/a/DealLayoutsA.kt": {
+    "mtime": 1792941106.8400307,
+    "seen": 1792957382.1035385,
+    "ast_hash": "8ce20f35b63895e53f4ccf632462e2ef",
+    "semantic_hash": "8ce20f35b63895e53f4ccf632462e2ef"
+  },
+  "project_osm_map/app/src/main/java/ru/mpavel/osmmap/ui/template/a/RequestA.kt": {
+    "mtime": 1792939872.5556755,
+    "seen": 1792957382.1035385,
+    "ast_hash": "ea2e08336f60b2a69b891afa656bea20",
+    "semantic_hash": "ea2e08336f60b2a69b891afa656bea20"
+  },
+  "project_osm_map/app/src/main/java/ru/mpavel/osmmap/ui/template/b/DealLayoutsB.kt": {
+    "mtime": 1792941107.0860698,
+    "seen": 1792957382.1035385,
+    "ast_hash": "b812ef2b0ff7c2ebd9bc5c433b3e7950",
+    "semantic_hash": "b812ef2b0ff7c2ebd9bc5c433b3e7950"
+  },
+  "project_osm_map/app/src/main/java/ru/mpavel/osmmap/ui/template/b/RequestB.kt": {
+    "mtime": 1792939176.2983122,
+    "seen": 1792957382.1035385,
+    "ast_hash": "3c669e25aa28a8e2c21c61db3c153904",
+    "semantic_hash": "3c669e25aa28a8e2c21c61db3c153904"
+  },
+  "project_osm_map/app/src/main/java/ru/mpavel/osmmap/ui/template/c/DealLayoutsC.kt": {
+    "mtime": 1792941107.1680696,
+    "seen": 1792957382.1035385,
+    "ast_hash": "067b6853343a68492aa5b39407e342d2",
+    "semantic_hash": "067b6853343a68492aa5b39407e342d2"
+  },
+  "project_osm_map/app/src/main/java/ru/mpavel/osmmap/ui/template/c/RequestC.kt": {
+    "mtime": 1792939176.3683112,
+    "seen": 1792957382.1035385,
+    "ast_hash": "17862cde017d870a8600ed4987e9b9e0",
+    "semantic_hash": "17862cde017d870a8600ed4987e9b9e0"
+  },
+  "project_osm_map/app/src/test/java/ru/mpavel/osmmap/ClientFlowTest.kt": {
+    "mtime": 1792939487.3100288,
+    "seen": 1792957382.1035385,
+    "ast_hash": "e0787e34a86c3672b0e32b4d19e7f884",
+    "semantic_hash": "e0787e34a86c3672b0e32b4d19e7f884"
+  },
+  "project_osm_map/db/tests/02_cancel_mode.sql": {
+    "mtime": 1792938653.4098816,
+    "seen": 1792957382.1035385,
+    "ast_hash": "9bc05e73746bc48376b57a1478aaed8f",
+    "semantic_hash": "9bc05e73746bc48376b57a1478aaed8f"
+  },
+  "project_osm_map/docs/v0.7/plans/E4_client.md": {
+    "mtime": 1792941747.6797805,
+    "seen": 1792957382.1035385,
+    "ast_hash": "2394e781c27170c79376d5765763eb8a",
+    "semantic_hash": "2394e781c27170c79376d5765763eb8a"
   }
 }

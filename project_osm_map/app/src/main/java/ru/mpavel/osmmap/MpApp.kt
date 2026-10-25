@@ -11,6 +11,7 @@ import coil3.svg.SvgDecoder
 import org.osmdroid.config.Configuration
 import ru.mpavel.osmmap.core.config.ConfigRepository
 import ru.mpavel.osmmap.core.net.ApiClient
+import ru.mpavel.osmmap.core.notify.NotificationCenter
 import ru.mpavel.osmmap.core.net.SessionStore
 import ru.mpavel.osmmap.data.DealRepository
 import ru.mpavel.osmmap.data.NotificationRepository
@@ -29,6 +30,7 @@ class AppGraph(context: Context) {
     val deals = DealRepository(api)
     val provider = ProviderRepository(api)
     val notifications = NotificationRepository(api)
+    val notifyCenter = NotificationCenter(notifications)
 }
 
 class MpApp : Application(), SingletonImageLoader.Factory {

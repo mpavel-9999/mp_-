@@ -216,6 +216,8 @@ data class Deal(
     val counterpartFields: List<FieldValue> = emptyList(),
     val requestFields: List<FieldValue> = emptyList(),
     val reviewPending: Boolean = false,
+    /** Итог отмены, если нажать сейчас (deal_cancel_mode в БД); null - отменить нельзя. */
+    val cancelMode: String? = null,
     /** Допустимые действия - решает сервер: agree, cancel, close, show_code, enter_code, test_scan, ... */
     val actions: List<String> = emptyList(),
 )

@@ -2,6 +2,7 @@ package ru.mpavel.osmmap.ui.template.b
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,28 +29,31 @@ import ru.mpavel.osmmap.core.theme.Mp
 import ru.mpavel.osmmap.feature.home.DealsSummary
 import ru.mpavel.osmmap.feature.home.HomeActions
 import ru.mpavel.osmmap.feature.home.HomeState
+import ru.mpavel.osmmap.feature.home.PendingReviewsBanner
 import ru.mpavel.osmmap.feature.home.SearchField
+import ru.mpavel.osmmap.feature.home.TreeHeader
 import ru.mpavel.osmmap.feature.home.slotMarkers
 import ru.mpavel.osmmap.ui.map.MpMap
 
-/** Шаблон B "Карточки": поиск, плитки категорий, активные сделки, карта мест карточкой. */
+/** Шаблон B "Карточки": поиск, плитки дерева услуг, активные сделки, карта мест карточкой. */
 @Composable
 fun HomeB(state: HomeState, actions: HomeActions) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
         modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+        contentPadding = PaddingValues(16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) { SearchField(state.query, actions.onQuery) }
-        item(span = { GridItemSpan(maxLineSpan) }) { DealsSummary(state.deals) }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Text(if (state.query.isBlank()) t("ui.categories") else t("ui.popular"), style = MaterialTheme.typography.titleMedium)
+        if (state.pending.isNotEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) { PendingReviewsBanner(state.pending, actions.onReview) }
         }
+        item(span = { GridItemSpan(maxLineSpan) }) { DealsSummary(state.deals, actions.onDeals) }
+        item(span = { GridItemSpan(maxLineSpan) }) { TreeHeader(state, actions) }
         items(state.shown, key = { it.serviceId }) { s ->
             Card(
-                onClick = {},
+                onClick = { actions.onNode(s) },
                 shape = Mp.shapes.card,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 modifier = Modifier.aspectRatio(1f),
@@ -76,6 +80,7 @@ fun HomeB(state: HomeState, actions: HomeActions) {
                 MpMap(
                     Modifier.fillMaxWidth().height(200.dp).clip(Mp.shapes.card),
                     markers = slotMarkers(state.slots),
+                    onMarkerClick = actions.onMarker,
                 )
             }
         }

@@ -287,6 +287,8 @@ final class DealApi {
         + "        AND (x.my_role = 'client' OR e.show_stage = 'always' OR (e.show_stage = 'agreed' AND x.agreed_stage)"
         + "             OR (e.show_stage = 'near' AND x.near_stage))),"
         + "  'review_pending', x.review_pending,"
+        // итог отмены, если нажать сейчас: правило в БД (deal_cancel_mode), экран лишь предупреждает
+        + "  'cancel_mode', deal_cancel_mode(x.deal_id, x.me),"
         + "  'actions', array_remove(ARRAY["
         + "      CASE WHEN x.my_role = 'client' AND x.status = 'OFFERS' THEN 'agree' END,"
         + "      CASE WHEN x.my_role = 'client' AND x.status IN ('INIT','MATCHING','OFFERS','AGREED','CONTACT') THEN 'cancel' END,"

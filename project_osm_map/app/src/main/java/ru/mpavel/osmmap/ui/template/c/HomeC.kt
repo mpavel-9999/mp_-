@@ -20,16 +20,18 @@ import ru.mpavel.osmmap.core.theme.Mp
 import ru.mpavel.osmmap.feature.home.DealsSummary
 import ru.mpavel.osmmap.feature.home.HomeActions
 import ru.mpavel.osmmap.feature.home.HomeState
+import ru.mpavel.osmmap.feature.home.PendingReviewsBanner
 import ru.mpavel.osmmap.feature.home.SearchField
 import ru.mpavel.osmmap.feature.home.ServiceRow
+import ru.mpavel.osmmap.feature.home.TreeHeader
 import ru.mpavel.osmmap.feature.home.slotMarkers
 import ru.mpavel.osmmap.ui.map.MpMap
 
-/** Шаблон C "Диспетчер": карта сверху, плотный список, цифры моноширинным шрифтом. */
+/** Шаблон C "Диспетчер": карта сверху, плотный список дерева услуг, цифры моноширинным шрифтом. */
 @Composable
 fun HomeC(state: HomeState, actions: HomeActions) {
     Column(Modifier.fillMaxSize()) {
-        MpMap(Modifier.fillMaxWidth().height(220.dp), markers = slotMarkers(state.slots))
+        MpMap(Modifier.fillMaxWidth().height(220.dp), markers = slotMarkers(state.slots), onMarkerClick = actions.onMarker)
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -39,9 +41,13 @@ fun HomeC(state: HomeState, actions: HomeActions) {
         }
         LazyColumn(Modifier.fillMaxSize()) {
             item { SearchField(state.query, actions.onQuery, Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
-            item { DealsSummary(state.deals, Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
+            if (state.pending.isNotEmpty()) {
+                item { PendingReviewsBanner(state.pending, actions.onReview, Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
+            }
+            item { DealsSummary(state.deals, actions.onDeals, Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
+            item { TreeHeader(state, actions, Modifier.padding(horizontal = 16.dp)) }
             items(state.shown, key = { it.serviceId }) { s ->
-                ServiceRow(s, dense = true)
+                ServiceRow(s, onClick = { actions.onNode(s) }, dense = true)
                 HorizontalDivider(color = Mp.colors.border)
             }
         }

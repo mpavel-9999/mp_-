@@ -1084,6 +1084,11 @@ components:
           type: array
           items: { $ref: '#/components/schemas/Field' }
         review_pending: { type: boolean }
+        cancel_mode:
+          type: string
+          nullable: true
+          enum: [CANCEL_FREE, CANCEL_CLIENT, CANCEL_PROVIDER]
+          description: Итог отмены, если нажать сейчас (deal_cancel_mode); null - отменить нельзя. Для штрафных причина обязательна
         actions:
           type: array
           items:

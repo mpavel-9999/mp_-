@@ -16,6 +16,8 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -35,7 +37,8 @@ import ru.mpavel.osmmap.core.theme.Mp
 
 /** Разделы оболочки: пиктограмма из БД и ключ глоссария. */
 enum class Tab(val icon: String, val textKey: String) {
-    HOME("home", "ui.categories"),
+    HOME("home", "ui.home"),
+    DEALS("note", "ui.active_deals"),
     SETTINGS("gear", "ui.settings"),
     PROFILE("user", "ui.profile"),
 }
@@ -43,47 +46,63 @@ enum class Tab(val icon: String, val textKey: String) {
 /**
  * Каркас по template.navigation: top_actions (A) - кнопки сверху, bottom_tabs (B) - нижнее меню,
  * fab (C) - кнопка действия с меню разделов. Содержимое экранов одно и то же.
+ * [current] = null - экран вне разделов (запрос, сделка, баллы): заголовок [title] и "Назад".
  */
 @Composable
 fun AppFrame(
-    current: Tab,
+    current: Tab?,
+    title: String?,
+    snackbar: SnackbarHostState,
     onTab: (Tab) -> Unit,
-    onBack: () -> Unit,
+    onBack: (() -> Unit)?,
     content: @Composable (Modifier) -> Unit,
 ) {
+    val snackHost: @Composable () -> Unit = { SnackbarHost(snackbar) }
     when (Mp.template.navigation) {
         "bottom_tabs" -> Scaffold(
-            bottomBar = { BottomTabs(current, onTab) },
+            topBar = { if (current == null) TitleBar(current, title, onBack, actions = {}) },
+            bottomBar = { if (current != null) BottomTabs(current, onTab) },
+            snackbarHost = snackHost,
         ) { padding -> content(Modifier.padding(padding)) }
 
         "fab" -> Scaffold(
-            topBar = { TitleBar(current, onBack, actions = {}) },
-            floatingActionButton = { SectionsFab(onTab) },
+            topBar = { TitleBar(current, title, onBack, actions = {}) },
+            floatingActionButton = { if (current != null) SectionsFab(onTab) },
+            snackbarHost = snackHost,
         ) { padding -> content(Modifier.padding(padding)) }
 
         else -> Scaffold(
             topBar = {
-                TitleBar(current, onBack) {
-                    ActionIcon(Tab.SETTINGS, current, onTab)
-                    ActionIcon(Tab.PROFILE, current, onTab)
+                TitleBar(current, title, onBack) {
+                    if (current != null) {
+                        ActionIcon(Tab.DEALS, current, onTab)
+                        ActionIcon(Tab.SETTINGS, current, onTab)
+                        ActionIcon(Tab.PROFILE, current, onTab)
+                    }
                 }
             },
+            snackbarHost = snackHost,
         ) { padding -> content(Modifier.padding(padding)) }
     }
 }
 
 @Composable
-private fun TitleBar(current: Tab, onBack: () -> Unit, actions: @Composable () -> Unit) {
+private fun TitleBar(current: Tab?, title: String?, onBack: (() -> Unit)?, actions: @Composable () -> Unit) {
     Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 2.dp) {
         Row(
             Modifier.fillMaxWidth().statusBarsPadding().heightIn(min = 56.dp).padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (current != Tab.HOME) {
+            // экран без "Назад" (баллы, п. 5.6) передаёт title без onBack - см. MainNav
+            if (current != Tab.HOME && onBack != null) {
                 TextButton(onClick = onBack, modifier = Modifier.heightIn(min = 48.dp)) { Text(t("ui.back")) }
             }
             Text(
-                if (current == Tab.HOME) t("ui.app_name") else t(current.textKey),
+                when {
+                    current == Tab.HOME -> t("ui.app_name")
+                    current != null -> t(current.textKey)
+                    else -> title.orEmpty()
+                },
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
@@ -96,7 +115,7 @@ private fun TitleBar(current: Tab, onBack: () -> Unit, actions: @Composable () -
 }
 
 @Composable
-private fun ActionIcon(tab: Tab, current: Tab, onTab: (Tab) -> Unit) {
+private fun ActionIcon(tab: Tab, current: Tab?, onTab: (Tab) -> Unit) {
     IconButton(onClick = { onTab(tab) }, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) {
         MpIcon(
             tab.icon,
@@ -117,7 +136,7 @@ private fun BottomTabs(current: Tab, onTab: (Tab) -> Unit) {
                 icon = {
                     MpIcon(tab.icon, tint = if (selected) MaterialTheme.colorScheme.primary else Mp.colors.textMuted)
                 },
-                label = { Text(t(tab.textKey), maxLines = 1) },
+                label = { Text(t(tab.textKey), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primaryContainer),
             )
         }

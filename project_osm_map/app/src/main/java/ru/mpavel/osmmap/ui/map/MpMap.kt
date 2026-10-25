@@ -38,8 +38,11 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.util.MapTileIndex
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
+import org.osmdroid.events.MapEventsReceiver
+import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polygon
+import org.osmdroid.views.overlay.Polyline
 import ru.mpavel.osmmap.R
 import ru.mpavel.osmmap.core.icons.svgBitmap
 import ru.mpavel.osmmap.core.theme.Mp
@@ -63,6 +66,10 @@ data class MapMarker(
 /** Зона клиента: точка и радиус в метрах. */
 @Immutable
 data class MapZone(val center: LatLon, val radiusM: Double)
+
+/** Линия маршрута (такси, доставка) цвета акцента темы. */
+@Immutable
+data class MapLine(val points: List<LatLon>)
 
 /** Подложка карты из конфигурации (config.base_layer). */
 val LocalBaseLayer = staticCompositionLocalOf<BaseLayer?> { null }
@@ -117,7 +124,10 @@ fun MpMap(
     zoom: Double = 15.0,
     zone: MapZone? = null,
     markers: List<MapMarker> = emptyList(),
+    lines: List<MapLine> = emptyList(),
     onMarkerClick: (String) -> Unit = {},
+    /** Нажатие на свободное место карты (выбор точки запроса); null - карта только для просмотра. */
+    onMapTap: ((LatLon) -> Unit)? = null,
     /** Где подпись правообладателя: там, где её не закроют шторка или кнопки раскладки. */
     attributionAlignment: Alignment = Alignment.BottomEnd,
 ) {
@@ -170,6 +180,24 @@ fun MpMap(
             modifier = Modifier.fillMaxSize().clipToBounds(),
             update = { view ->
                 view.overlays.clear()
+                if (onMapTap != null) {
+                    view.overlays.add(MapEventsOverlay(object : MapEventsReceiver {
+                        override fun singleTapConfirmedHelper(p: GeoPoint): Boolean {
+                            onMapTap(LatLon(p.latitude, p.longitude))
+                            return true
+                        }
+
+                        override fun longPressHelper(p: GeoPoint): Boolean = false
+                    }))
+                }
+                for (line in lines) {
+                    view.overlays.add(Polyline(view).apply {
+                        setPoints(line.points.map { GeoPoint(it.lat, it.lon) })
+                        outlinePaint.color = colors.accent.toArgb()
+                        outlinePaint.strokeWidth = 10f
+                        setOnClickListener { _, _, _ -> false }
+                    })
+                }
                 if (zone != null) {
                     view.overlays.add(Polygon(view).apply {
                         points = Polygon.pointsAsCircle(GeoPoint(zone.center.lat, zone.center.lon), zone.radiusM)

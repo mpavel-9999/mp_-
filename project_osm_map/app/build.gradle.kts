@@ -19,6 +19,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // java.time (период запроса) на Android 7 (minSdk 24) - через desugaring
+        isCoreLibraryDesugaringEnabled = true
     }
 
     buildFeatures {
@@ -46,6 +48,8 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-compose:3.6.3")
     implementation("io.coil-kt.coil3:coil-svg:3.6.3")
     implementation("org.osmdroid:osmdroid-android:6.1.20")
+
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 
     testImplementation("junit:junit:4.13.2")
 }

@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import ru.mpavel.osmmap.R
 import ru.mpavel.osmmap.core.i18n.LocalTexts
+import ru.mpavel.osmmap.core.i18n.Texts
 import ru.mpavel.osmmap.core.net.ApiError
 import ru.mpavel.osmmap.core.net.NetworkError
 import ru.mpavel.osmmap.core.theme.Mp
@@ -29,14 +30,24 @@ fun textOr(key: String, fallbackRes: Int): String {
     return if (text == key) stringResource(fallbackRes) else text
 }
 
-/** Понятный текст ошибки: нет связи - своим сообщением, ответ API - текстом сервера. */
+/** Ключ глоссария для кода ошибки API: REVIEW_REQUIRED -> ui.err.review_required. */
+fun errorKey(code: String): String = "ui.err." + code.lowercase()
+
+/** Текст ошибки API на языке интерфейса: термин ui.err.<код>, если он есть, иначе текст сервера (только по-русски). */
+fun apiErrorText(texts: Texts, error: ApiError): String {
+    val key = errorKey(error.code)
+    val text = texts.t(key)
+    return if (text != key) text else error.message?.takeIf { it.isNotBlank() } ?: error.code
+}
+
+/** Понятный текст ошибки: нет связи - своим сообщением, ответ API - по коду или текстом сервера. */
 @Composable
 fun errorMessage(error: Throwable): String = when (error) {
     is NetworkError -> {
         val text = LocalTexts.current.t("ui.error_network")
         if (text == "ui.error_network") stringResource(R.string.error_network, error.baseUrl) else "$text (${error.baseUrl})"
     }
-    is ApiError -> error.message?.takeIf { it.isNotBlank() } ?: error.code
+    is ApiError -> apiErrorText(LocalTexts.current, error)
     else -> stringResource(R.string.error_failed, error.message ?: error.javaClass.simpleName)
 }
 
