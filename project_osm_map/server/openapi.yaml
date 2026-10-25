@@ -1,0 +1,1137 @@
+openapi: 3.0.3
+info:
+  title: mp_service API
+  version: 0.7.0
+  description: |
+    Локальный API маркетплейса над схемой `mp_service` (план Э2, ТЗ v0.7 — docs/v0.7/03_implementation_spec.md, раздел 4).
+    Правила процесса сделки проверяет БД; сервер ведёт сессии, код закрытия, маршруты по дорогам и плановые задания.
+
+    **Вход.** `POST /api/session` → `token`; дальше заголовок `Authorization: Bearer <token>`. Токен живёт в памяти сервера 12 ч.
+
+    **Язык.** `Accept-Language: RUS|ENG|KAZ|DEU`; без заголовка — язык агента, иначе русский.
+
+    **Ошибки.** Тело всегда `{"error": "текст", "code": "КОД"}`:
+    - 400 `BAD_REQUEST` — неверные данные или нарушено ограничение БД; также `REQUIRED_FIELDS`, `BAD_SCHEME`, `BAD_LANG`;
+    - 401 `UNAUTHORIZED` (нет входа), `LOGIN_FAILED`;
+    - 403 `FORBIDDEN`, `NO_SERVICE_ACCESS`, `NOT_TESTING`;
+    - 404 `NOT_FOUND`; 405 — путь есть, метода нет;
+    - 409 — правило процесса: код из `HINT` ошибки БД (`BUSY`, `OFFER_NOT_ACTIVE`, `PRICE_OUT_OF_RANGE`,
+      причины `provider_can_offer`: `NO_DEAL`, `DEAL_NOT_OPEN`, `OWN_DEAL`, `NO_SERVICE_ACCESS`, `BLOCKED`, `NO_SLOT`,
+      `OUT_OF_CLIENT_ZONE`, `OUT_OF_PROVIDER_ZONE`, `WORK_TIME`, `CLIENT_RATING`, `PROVIDER_RATING`, `PRICE_RANGE`,
+      `REVIEW_REQUIRED`), иначе `RULE`; дубль — `DUPLICATE`; а также `REVIEW_REQUIRED`, `NOT_ON_THE_WAY`, `DEAL_NOT_CLOSABLE`;
+    - 422 `CODE_INVALID`, `CODE_EXPIRED`, `NO_ROUTE`;
+    - 503 `ROUTING_UNAVAILABLE` — граф дорог не готов (остальные методы работают);
+    - 500 `INTERNAL`, `DB_ERROR`.
+servers:
+  - url: http://127.0.0.1:8080/api
+    description: Локально; эмуляторы — через `adb -s <serial> reverse tcp:8080 tcp:8080`
+security:
+  - bearer: []
+tags:
+  - name: Вход
+  - name: Конфигурация
+  - name: Положение
+  - name: Клиент
+  - name: Поставщик
+  - name: Закрытие
+  - name: Уведомления
+
+paths:
+  /health:
+    get:
+      summary: Состояние сервера и маршрутизации
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  routing: { type: string, description: Состояние графа дорог }
+
+  # ------------------------------------------------------------------ 4.1 вход
+  /session:
+    post:
+      tags: [Вход]
+      summary: Вход по логину и паролю
+      description: Пароль проверяет БД (`agent_login_check`). При `MP_DEV_LOGIN=1` можно войти по `agent_id` без пароля.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                login: { type: string, example: user_testing_1 }
+                password: { type: string, format: password }
+                agent_id: { type: integer, description: Только при MP_DEV_LOGIN=1 }
+      responses:
+        '200':
+          description: Токен и профиль
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  agent: { $ref: '#/components/schemas/Me' }
+        '401': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [Вход]
+      summary: Выход (токен закрывается)
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+  /dev/agents:
+    get:
+      tags: [Вход]
+      summary: Список агентов для входа без пароля
+      description: Только при `MP_DEV_LOGIN=1`, иначе 404.
+      security: []
+      responses:
+        '200':
+          description: Агенты
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    agent_id: { type: integer }
+                    pseudonym: { type: string }
+                    is_testing: { type: boolean }
+                    roles: { type: array, items: { type: string } }
+                    login: { type: string, nullable: true }
+        '404': { $ref: '#/components/responses/Error' }
+
+  # ------------------------------------------------------------------ 4.2 конфигурация и справочники
+  /me:
+    get:
+      tags: [Конфигурация]
+      summary: Профиль агента, роли и подключённые сервисы
+      responses:
+        '200':
+          description: Профиль
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '401': { $ref: '#/components/responses/Error' }
+  /config:
+    get:
+      tags: [Конфигурация]
+      summary: Конфигурация интерфейса
+      description: Шаблон, цветовая схема, тексты, статусы, причины отмены, иконки, курсоры, подложка карты. 304 при совпадающей сумме.
+      parameters:
+        - { name: checksum, in: query, schema: { type: string }, description: md5 из прошлого ответа }
+      responses:
+        '200':
+          description: Конфигурация
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Config' }
+        '304': { description: Не изменилась }
+        '401': { $ref: '#/components/responses/Error' }
+    put:
+      tags: [Конфигурация]
+      summary: Сменить шаблон, схему, язык
+      description: Отсутствующие поля не меняются; схема должна относиться к шаблону. Возвращает новую конфигурацию.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                template: { type: string, example: B }
+                scheme: { type: string, example: B_DARK }
+                lang: { type: string, example: ENG }
+      responses:
+        '200':
+          description: Новая конфигурация
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Config' }
+        '400': { $ref: '#/components/responses/Error' }
+  /ui/options:
+    get:
+      tags: [Конфигурация]
+      summary: Варианты «Шаблон / Схема» и языки
+      security: [{}, { bearer: [] }]
+      responses:
+        '200':
+          description: Варианты
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  options:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        template: { type: string }
+                        scheme: { type: string }
+                        label: { type: string }
+                        is_dark: { type: boolean }
+                  languages:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        code: { type: string }
+                        name: { type: string }
+  /services:
+    get:
+      tags: [Конфигурация]
+      summary: Поиск услуг по названию, пути и синонимам
+      security: [{}, { bearer: [] }]
+      parameters:
+        - { name: q, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Узлы дерева услуг
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    service_id: { type: integer }
+                    node_type: { type: string }
+                    parent_service_id: { type: integer, nullable: true }
+                    service_name: { type: string }
+                    service_path: { type: string }
+                    icon_id: { type: integer, nullable: true }
+                    icon_code: { type: string, nullable: true }
+                    geo_mode: { type: string, enum: [point, route, none] }
+                    price_unit: { type: string }
+  /services/{serviceId}/form:
+    get:
+      tags: [Конфигурация]
+      summary: Поля формы услуги (с наследованием)
+      security: [{}, { bearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/serviceId'
+        - { name: scope, in: query, schema: { type: string, enum: [request, offer, profile], default: request } }
+      responses:
+        '200':
+          description: Поля
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    attribute_id: { type: integer }
+                    type: { type: string }
+                    label: { type: string }
+                    icon_code: { type: string, nullable: true }
+                    required: { type: boolean }
+                    show_stage: { type: string, enum: [always, agreed, near] }
+                    sort_order: { type: integer }
+                    options:
+                      type: array
+                      nullable: true
+                      items:
+                        type: object
+                        properties:
+                          attribute_id: { type: integer }
+                          label: { type: string }
+  /services/{serviceId}/settings:
+    get:
+      tags: [Конфигурация]
+      summary: Эффективные настройки узла
+      security: [{}, { bearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/serviceId'
+      responses:
+        '200':
+          description: Код настройки → значение
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: { type: string, nullable: true }
+                example:
+                  geo_mode: point
+                  place_mode: offline
+                  price_unit: service
+                  close_method: QR
+                  close_qr_ttl_s: '60'
+                  close_code_len: '6'
+                  cancel_free_min: '5'
+                  currency: KZT
+  /map/base-layers:
+    get:
+      tags: [Конфигурация]
+      summary: Подложки карты
+      security: [{}, { bearer: [] }]
+      responses:
+        '200':
+          description: Подложки
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    code: { type: string }
+                    sort_order: { type: integer }
+                    version: { type: number, nullable: true }
+                    url: { type: string }
+                    attribution: { type: string }
+  /icons:
+    get:
+      tags: [Конфигурация]
+      summary: Иконки (SVG)
+      security: [{}, { bearer: [] }]
+      responses:
+        '200':
+          description: Иконки
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    icon_id: { type: integer }
+                    icon_code: { type: string }
+                    icon_svg: { type: string }
+
+  # ------------------------------------------------------------------ 4.3 положение
+  /me/position:
+    put:
+      tags: [Положение]
+      summary: Текущее положение агента
+      description: '`source: manual` (курсор) разрешён только в режиме тестирования — иначе триггер БД отклоняет (409).'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lat, lon]
+              properties:
+                lat: { type: number }
+                lon: { type: number }
+                source: { type: string, enum: [gps, manual], default: gps }
+                accuracy_m: { type: number }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '409': { $ref: '#/components/responses/Error' }
+  /deals/{dealId}/positions:
+    get:
+      tags: [Положение]
+      summary: Положения сторон сделки и код курсора
+      description: Только стороны сделки; положения старше `position_ttl_s` не отдаются.
+      parameters:
+        - $ref: '#/components/parameters/dealId'
+      responses:
+        '200':
+          description: Положения
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    agent_id: { type: integer }
+                    role: { type: string, enum: [client, provider] }
+                    lat: { type: number }
+                    lon: { type: number }
+                    source: { type: string }
+                    date_update: { type: string, format: date-time }
+                    cursor: { type: string, enum: [CLIENT, PROVIDER, CLIENT_TEST, PROVIDER_TEST] }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  # ------------------------------------------------------------------ 4.4 клиент
+  /map/slots:
+    get:
+      tags: [Клиент]
+      summary: Публикации поставщиков рядом (точки смещены до согласования)
+      parameters:
+        - { name: lat, in: query, schema: { type: number, default: 43.238 } }
+        - { name: lon, in: query, schema: { type: number, default: 76.889 } }
+        - { name: radius, in: query, schema: { type: number, default: 1000 }, description: метры }
+        - { name: service_id, in: query, schema: { type: integer }, description: узел или его потомки/предки }
+      responses:
+        '200':
+          description: Публикации по расстоянию
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/MapSlot' }
+  /forecast:
+    post:
+      tags: [Клиент]
+      summary: Прогноз цены
+      description: Для `price_unit = km` (такси) — по тарифам поставщиков и длине маршрута по дорогам.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [service_id]
+              properties:
+                service_id: { type: integer }
+                lat: { type: number }
+                lon: { type: number }
+                to_lat: { type: number }
+                to_lon: { type: number }
+      responses:
+        '200':
+          description: Прогноз
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Forecast' }
+        '400': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /deals:
+    post:
+      tags: [Клиент]
+      summary: Создать запрос (INIT → MATCHING, автоотклики)
+      description: |
+        Нельзя, пока есть непоставленные баллы (409 `REVIEW_REQUIRED`). Обязательные поля формы `scope=request` проверяются (400 `REQUIRED_FIELDS`).
+        Для `geo_mode = route` нужны обе точки; подбор водителей «по пути» выполняет сервер.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [service_id, period_start, period_end]
+              properties:
+                service_id: { type: integer }
+                slot_id: { type: integer, description: Запрос к конкретной публикации }
+                lat: { type: number }
+                lon: { type: number }
+                to_lat: { type: number }
+                to_lon: { type: number }
+                zone_radius_m: { type: number, default: 100 }
+                period_start: { type: string, format: date-time }
+                period_end: { type: string, format: date-time }
+                provider_rating_min: { type: number }
+                client_price: { type: number }
+                attributes: { $ref: '#/components/schemas/Attributes' }
+      responses:
+        '200':
+          description: Сделка
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Deal' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+    get:
+      tags: [Клиент]
+      summary: Мои сделки
+      description: '`status=active` — открытые и ожидающие баллов; `all` — все.'
+      parameters:
+        - { name: role, in: query, schema: { type: string, enum: [client, provider, all], default: all } }
+        - { name: status, in: query, schema: { type: string, enum: [active, all], default: active } }
+      responses:
+        '200':
+          description: Сделки
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DealListItem' }
+  /deals/{dealId}:
+    get:
+      tags: [Клиент]
+      summary: Сделка, допустимые действия, открытые поля другой стороны
+      parameters:
+        - $ref: '#/components/parameters/dealId'
+      responses:
+        '200':
+          description: Сделка
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Deal' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /deals/{dealId}/offers:
+    get:
+      tags: [Клиент]
+      summary: Отклики (клиенту — все, поставщику — свой)
+      parameters:
+        - $ref: '#/components/parameters/dealId'
+      responses:
+        '200':
+          description: Отклики в порядке сортировки сервиса
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Offer' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [Поставщик]
+      summary: Ручной отклик
+      description: |
+        Условия проверяет БД (`provider_can_offer`, диапазон цены) → 409 с кодом причины.
+        Для такси — только поездки по пути (409 `NOT_ON_THE_WAY`). Точка: из запроса, иначе активная публикация, иначе точка обслуживания.
+      parameters:
+        - $ref: '#/components/parameters/dealId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [price]
+              properties:
+                price: { type: number }
+                lat: { type: number }
+                lon: { type: number }
+                attributes: { $ref: '#/components/schemas/Attributes' }
+      responses:
+        '200':
+          description: Свой отклик
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Offer' }
+        '409': { $ref: '#/components/responses/Error' }
+  /deals/{dealId}/offers/{offerId}/agree:
+    post:
+      tags: [Клиент]
+      summary: Согласовать отклик (`deal_agree`)
+      parameters:
+        - $ref: '#/components/parameters/dealId'
+        - { name: offerId, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Сделка в AGREED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Deal' }
+        '409': { $ref: '#/components/responses/Error' }
+  /deals/{dealId}/routes:
+    get:
+      tags: [Клиент]
+      summary: Ссылки на маршрут к точному месту (после согласования)
+      parameters:
+        - $ref: '#/components/parameters/dealId'
+      responses:
+        '200':
+          description: Ссылки
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    deal_offer_id: { type: integer }
+                    provider_code: { type: string }
+                    provider_name: { type: string }
+                    sort_order: { type: integer }
+                    route_url: { type: string }
+        '403': { $ref: '#/components/responses/Error' }
+
+  # ------------------------------------------------------------------ 4.5 поставщик
+  /slots:
+    post:
+      tags: [Поставщик]
+      summary: Опубликовать место или маршрут
+      description: |
+        С `to_lat/to_lon` — маршрут: сервер строит линию по дорогам (`route_polyline`, `route_length_m`).
+        После публикации — уведомления и автоотклики по уже открытым подходящим запросам.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [service_id, lat, lon, period_start, period_end]
+              properties:
+                service_id: { type: integer }
+                lat: { type: number }
+                lon: { type: number }
+                radius_m: { type: number }
+                to_lat: { type: number }
+                to_lon: { type: number }
+                radius_to_m: { type: number }
+                period_start: { type: string, format: date-time }
+                period_end: { type: string, format: date-time }
+                price_min: { type: number }
+      responses:
+        '200':
+          description: Публикация (строка provider_slot)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Slot' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+    get:
+      tags: [Поставщик]
+      summary: Мои публикации (активные и за последние сутки)
+      parameters:
+        - { name: mine, in: query, schema: { type: integer, enum: [1] } }
+      responses:
+        '200':
+          description: Публикации
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Slot' }
+  /slots/{slotId}:
+    delete:
+      tags: [Поставщик]
+      summary: Снять публикацию
+      parameters:
+        - { name: slotId, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '404': { $ref: '#/components/responses/Error' }
+  /requests:
+    get:
+      tags: [Поставщик]
+      summary: Подходящие открытые запросы с рекомендованной ценой
+      description: Кандидаты из `v_deal_candidates`; для такси — только поездки по пути водителя.
+      responses:
+        '200':
+          description: Запросы
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/IncomingRequest' }
+  /me/services/{serviceId}:
+    put:
+      tags: [Поставщик]
+      summary: Настройки поставщика по сервису
+      description: Отсутствующие поля не меняются.
+      parameters:
+        - $ref: '#/components/parameters/serviceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                lat: { type: number }
+                lon: { type: number }
+                zone_radius_m: { type: number }
+                work_time_from: { type: string, example: '08:00' }
+                work_time_to: { type: string, example: '20:00' }
+                price_min: { type: number }
+                price_max: { type: number }
+                unit_price_min: { type: number, description: Цена за км (такси) }
+                client_rating_min: { type: number }
+                is_auto: { type: boolean }
+                capacity: { type: integer }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  # ------------------------------------------------------------------ 4.6 закрытие, отмена, баллы
+  /deals/{dealId}/close/request:
+    post:
+      tags: [Закрытие]
+      summary: Сторона нажала «Закрыть сделку»
+      description: От клиента — поставщику уходит уведомление CLOSE_REQUEST. Только AGREED/CONTACT.
+      parameters:
+        - $ref: '#/components/parameters/dealId'
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /deals/{dealId}/close/code:
+    get:
+      tags: [Закрытие]
+      summary: Действующий код закрытия (только поставщик)
+      description: HMAC-SHA256 по секрету сделки и интервалу; длина и время жизни — из настроек сервиса.
+      parameters:
+        - $ref: '#/components/parameters/dealId'
+      responses:
+        '200':
+          description: Код
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CloseCode' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /deals/{dealId}/close:
+    post:
+      tags: [Закрытие]
+      summary: Клиент подтверждает код → CLOSED
+      description: |
+        Принимается код или QR-строка `mpclose:<deal_id>:<code>`; действует текущий и предыдущий интервал.
+        Для `place_mode = offline` БД требует CONTACT (иначе 409).
+      parameters:
+        - $ref: '#/components/parameters/dealId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string }
+      responses:
+        '200':
+          description: Закрытая сделка
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Deal' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /deals/{dealId}/close/test-scan:
+    post:
+      tags: [Закрытие]
+      summary: Тестовый клиент закрывает без сканирования
+      description: Только `is_testing` (иначе 403 `NOT_TESTING`).
+      parameters:
+        - $ref: '#/components/parameters/dealId'
+      responses:
+        '200':
+          description: Закрытая сделка
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Deal' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /deals/{dealId}/close/test-provide:
+    post:
+      tags: [Закрытие]
+      summary: Тестовый поставщик отправляет код клиенту уведомлением CLOSE_CODE
+      parameters:
+        - $ref: '#/components/parameters/dealId'
+      responses:
+        '200':
+          description: Отправленный код
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CloseCode' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /deals/{dealId}/cancel:
+    post:
+      tags: [Закрытие]
+      summary: Отменить сделку (итоговый статус решает `deal_cancel`)
+      description: CANCEL_FREE в первые `cancel_free_min` минут, иначе CANCEL_CLIENT / CANCEL_PROVIDER (нужна причина).
+      parameters:
+        - $ref: '#/components/parameters/dealId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cancel_reason_id: { type: integer, description: Из config.cancel_reasons }
+                comment: { type: string }
+      responses:
+        '200':
+          description: Статус и сделка
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  deal: { $ref: '#/components/schemas/Deal' }
+        '409': { $ref: '#/components/responses/Error' }
+  /deals/{dealId}/review:
+    post:
+      tags: [Закрытие]
+      summary: Баллы другой стороне
+      description: Роль оцениваемого ставит триггер; повтор — 409 `DUPLICATE`.
+      parameters:
+        - $ref: '#/components/parameters/dealId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [score]
+              properties:
+                score: { type: integer, minimum: 1, maximum: 5 }
+                comment: { type: string }
+      responses:
+        '200':
+          description: Сделка
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Deal' }
+        '400': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /me/pending-reviews:
+    get:
+      tags: [Закрытие]
+      summary: Сделки, по которым нужно поставить баллы
+      responses:
+        '200':
+          description: Сделки
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    deal_id: { type: integer }
+                    counterpart: { type: string }
+
+  # ------------------------------------------------------------------ 4.7 уведомления
+  /notifications:
+    get:
+      tags: [Уведомления]
+      summary: Уведомления после указанного (до 200)
+      parameters:
+        - { name: since, in: query, schema: { type: integer, default: 0 } }
+      responses:
+        '200':
+          description: Уведомления
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    notification_id: { type: integer }
+                    deal_id: { type: integer, nullable: true }
+                    type: { type: string, example: NEW_REQUEST }
+                    text: { type: string }
+                    payload: { type: object, nullable: true }
+                    date_creation: { type: string, format: date-time }
+                    date_read: { type: string, format: date-time, nullable: true }
+  /notifications/{notificationId}/read:
+    post:
+      tags: [Уведомления]
+      summary: Отметить прочитанным
+      parameters:
+        - { name: notificationId, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+  parameters:
+    dealId:
+      name: dealId
+      in: path
+      required: true
+      schema: { type: integer }
+    serviceId:
+      name: serviceId
+      in: path
+      required: true
+      schema: { type: integer }
+  responses:
+    Ok:
+      description: Выполнено
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status: { type: string, example: ok }
+    Error:
+      description: Ошибка
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+        code: { type: string }
+    Attributes:
+      type: array
+      items:
+        type: object
+        properties:
+          attribute_id: { type: integer }
+          value: { type: string }
+    Field:
+      type: object
+      properties:
+        attribute_id: { type: integer }
+        label: { type: string }
+        icon_code: { type: string, nullable: true }
+        value: { type: string }
+    Me:
+      type: object
+      properties:
+        agent_id: { type: integer }
+        pseudonym: { type: string }
+        name: { type: string, nullable: true }
+        is_testing: { type: boolean }
+        lang: { type: string }
+        roles: { type: array, items: { type: string } }
+        pending_reviews: { type: integer }
+        services:
+          type: array
+          items:
+            type: object
+            properties:
+              service_id: { type: integer }
+              name: { type: string }
+              node_type: { type: string }
+              price_unit: { type: string }
+              lat: { type: number, nullable: true }
+              lon: { type: number, nullable: true }
+              zone_radius_m: { type: number, nullable: true }
+              work_time_from: { type: string, nullable: true }
+              work_time_to: { type: string, nullable: true }
+              price_min: { type: number, nullable: true }
+              price_max: { type: number, nullable: true }
+              unit_price_min: { type: number, nullable: true }
+              capacity: { type: integer, nullable: true }
+              client_rating_min: { type: number, nullable: true }
+              is_auto: { type: boolean }
+              rating: { type: number, nullable: true }
+              newbie: { type: boolean }
+    Config:
+      type: object
+      properties:
+        checksum: { type: string }
+        config:
+          type: object
+          properties:
+            lang: { type: string }
+            template: { type: string }
+            scheme: { type: string }
+            map: { type: string }
+            version: { type: integer }
+        template: { type: object, description: value_json шаблона UI_TEMPLATE }
+        scheme: { type: object, description: value_json схемы UI_SCHEME }
+        texts: { type: object, additionalProperties: { type: string } }
+        notify_texts: { type: object, additionalProperties: { type: string } }
+        statuses: { type: object, additionalProperties: { type: string } }
+        cancel_reasons:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              code: { type: string }
+              text: { type: string }
+        icons:
+          type: array
+          items:
+            type: object
+            properties:
+              icon_id: { type: integer }
+              code: { type: string }
+              svg: { type: string }
+        cursors: { type: object, additionalProperties: { type: string } }
+        base_layer:
+          type: object
+          properties:
+            code: { type: string }
+            url: { type: string }
+            version: { type: number, nullable: true }
+            attribution: { type: string }
+    Forecast:
+      type: object
+      properties:
+        price_min: { type: number, nullable: true }
+        price_max: { type: number, nullable: true }
+        price_median: { type: number, nullable: true }
+        providers: { type: integer }
+        price_unit: { type: string }
+        route_length_m: { type: integer, description: Только такси }
+        route_polyline: { type: string, description: Только такси (encoded polyline) }
+    MapSlot:
+      type: object
+      properties:
+        slot_id: { type: integer }
+        agent_id: { type: integer }
+        service_id: { type: integer }
+        service_name: { type: string }
+        pseudonym: { type: string }
+        rating: { type: number, nullable: true }
+        is_testing: { type: boolean }
+        price_min: { type: number, nullable: true }
+        period_start: { type: string, format: date-time }
+        period_end: { type: string, format: date-time }
+        lat: { type: number, description: Смещённая точка }
+        lon: { type: number }
+        to_lat: { type: number, nullable: true }
+        to_lon: { type: number, nullable: true }
+        radius_m: { type: number, nullable: true }
+        radius_to_m: { type: number, nullable: true }
+        route_polyline: { type: string, nullable: true }
+        marker_label: { type: string, nullable: true }
+        distance_m: { type: number }
+    Slot:
+      type: object
+      description: Строка provider_slot
+      properties:
+        slot_id: { type: integer }
+        agent_id: { type: integer }
+        service_id: { type: integer }
+        service_name: { type: string, description: Только в GET /slots }
+        geo_lat: { type: number }
+        geo_lon: { type: number }
+        radius_m: { type: number, nullable: true }
+        geo_to_lat: { type: number, nullable: true }
+        geo_to_lon: { type: number, nullable: true }
+        radius_to_m: { type: number, nullable: true }
+        route_polyline: { type: string, nullable: true }
+        route_length_m: { type: integer, nullable: true }
+        period_start: { type: string, format: date-time }
+        period_end: { type: string, format: date-time }
+        price_min: { type: number, nullable: true }
+        slot_status: { type: string, enum: [active, cancelled, expired] }
+    DealListItem:
+      type: object
+      properties:
+        deal_id: { type: integer }
+        service_id: { type: integer }
+        service_name: { type: string }
+        status: { type: string }
+        status_name: { type: string }
+        my_role: { type: string, enum: [client, provider] }
+        period_start: { type: string, format: date-time }
+        period_end: { type: string, format: date-time }
+        price_total: { type: number, nullable: true }
+        client_price: { type: number, nullable: true }
+        price_forecast_min: { type: number, nullable: true }
+        price_forecast_max: { type: number, nullable: true }
+        price_unit: { type: string }
+        lat: { type: number }
+        lon: { type: number }
+        offers_active: { type: integer }
+        counterpart: { type: string, nullable: true }
+        review_pending: { type: boolean }
+    Deal:
+      type: object
+      properties:
+        deal_id: { type: integer }
+        service_id: { type: integer }
+        service_name: { type: string }
+        service_path: { type: string }
+        status: { type: string, enum: [INIT, MATCHING, OFFERS, AGREED, CONTACT, CLOSED, NOT_CLOSED, CANCEL_FREE, CANCEL_CLIENT, CANCEL_PROVIDER, EXPIRED] }
+        status_name: { type: string }
+        my_role: { type: string, enum: [client, provider, offerer, candidate] }
+        geo_mode: { type: string }
+        place_mode: { type: string }
+        price_unit: { type: string }
+        close_method: { type: string, enum: [QR, KEY] }
+        near_radius_m: { type: string }
+        currency: { type: string }
+        lat: { type: number }
+        lon: { type: number }
+        zone_radius_m: { type: number }
+        to_lat: { type: number, nullable: true }
+        to_lon: { type: number, nullable: true }
+        route_length_m: { type: integer, nullable: true }
+        period_start: { type: string, format: date-time }
+        period_end: { type: string, format: date-time }
+        price_forecast_min: { type: number, nullable: true }
+        price_forecast_max: { type: number, nullable: true }
+        client_price: { type: number, nullable: true }
+        provider_rating_min: { type: number, nullable: true }
+        price_provider: { type: number, nullable: true }
+        price_total: { type: number, nullable: true }
+        date_creation: { type: string, format: date-time }
+        date_agreed: { type: string, format: date-time, nullable: true }
+        date_close: { type: string, format: date-time, nullable: true }
+        slot_id: { type: integer, nullable: true }
+        client:
+          type: object
+          properties:
+            pseudonym: { type: string }
+            rating: { type: number, nullable: true }
+            newbie: { type: boolean }
+            is_testing: { type: boolean }
+        provider:
+          type: object
+          nullable: true
+          properties:
+            pseudonym: { type: string }
+            rating: { type: number, nullable: true }
+            is_testing: { type: boolean }
+        counterpart_fields:
+          description: Поля профиля другой стороны по show_stage (always / agreed / near)
+          type: array
+          items: { $ref: '#/components/schemas/Field' }
+        request_fields:
+          description: Поля запроса; поставщику — по show_stage
+          type: array
+          items: { $ref: '#/components/schemas/Field' }
+        review_pending: { type: boolean }
+        actions:
+          type: array
+          items:
+            type: string
+            enum: [agree, cancel, close, show_code, enter_code, test_scan, test_provide, route, offer, review]
+    Offer:
+      type: object
+      description: Строка v_deal_offer_list
+      properties:
+        deal_offer_id: { type: integer }
+        deal_id: { type: integer }
+        provider_agent_id: { type: integer }
+        service_id: { type: integer }
+        position: { type: integer }
+        offer_price: { type: number }
+        offer_mode: { type: string, enum: [manual, auto] }
+        offer_status: { type: string }
+        is_testing: { type: boolean }
+        newbie: { type: boolean }
+      additionalProperties: true
+    IncomingRequest:
+      type: object
+      properties:
+        deal_id: { type: integer }
+        service_id: { type: integer }
+        service_name: { type: string }
+        period_start: { type: string, format: date-time }
+        period_end: { type: string, format: date-time }
+        lat: { type: number }
+        lon: { type: number }
+        zone_radius_m: { type: number }
+        to_lat: { type: number, nullable: true }
+        to_lon: { type: number, nullable: true }
+        route_length_m: { type: integer, nullable: true }
+        client_price: { type: number, nullable: true }
+        price_forecast_min: { type: number, nullable: true }
+        price_forecast_max: { type: number, nullable: true }
+        price_unit: { type: string }
+        geo_mode: { type: string }
+        client_rating: { type: number, nullable: true }
+        client_newbie: { type: boolean }
+        offers_active: { type: integer }
+        recommended_price: { type: number }
+    CloseCode:
+      type: object
+      properties:
+        method: { type: string, enum: [QR, KEY] }
+        code: { type: string }
+        qr_payload: { type: string, example: 'mpclose:7:482913' }
+        ttl_s: { type: integer }
+        expires_in_s: { type: integer }

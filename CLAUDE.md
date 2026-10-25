@@ -63,7 +63,8 @@ _(записывайте, на чём остановились, принятые
   - Э0 выполнен: второй эмулятор `Medium_Phone_B` (поставщик, порт 5556) рядом с `Medium_Phone_API_37.0`
     (клиент, 5554); оба одновременно ходят в API через `adb -s <serial> reverse tcp:8080 tcp:8080`.
   - Сервер и сборка из терминала: `JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"` (java в PATH нет).
-  - Данные OSM для маршрутов такси: `kazakhstan-latest.osm.pbf` (Geofabrik, 214 МБ) — ждёт разрешения на скачивание.
+  - Данные OSM для маршрутов такси: `server/data/kazakhstan-latest.osm.pbf` (Geofabrik, 214 МБ) скачан, кэш графа
+    `server/data/gh-cache`; папка `server/data/` в `.gitignore`.
   - Граф `graphify-out/` обновлять после каждого этапа и коммитить вместе с этим разделом.
   - Э1 выполнен: `db/mp_service.sql` v0.7 (30 таблиц, правила сделки в БД: переходы статусов, `provider_can_offer`,
     `deal_agree`, `deal_cancel`, `run_deal_jobs` раз в минуту), тесты `db/tests/01_rules.sql` — 29/29. План — `docs/v0.7/plans/E1_db.md`.
@@ -71,4 +72,9 @@ _(записывайте, на чём остановились, принятые
   - Тестовые пользователи `user_testing_1…5` (агенты 7–11; клиент + поставщик + администратор, режим тестирования):
     вход по общему паролю, который задал владелец; в репозитории только хеш (`agent_login`, pgcrypto).
   - Сессия API должна задавать `mp.agent_id` (кто действует) и `mp.geo_secret` (секрет смещения точек).
-  - Следующий шаг: Э2 — API v0.7 (план сначала в `docs/v0.7/plans/E2_api.md`).
+  - Э2 выполнен: API v0.7 (`server/`, 39 методов, описание `server/openapi.yaml`), проверка
+    `server/tests/api_smoke.py` — 16/16. План и итог — `docs/v0.7/plans/E2_api.md`.
+    - Python в PATH нет (`python` — заглушка Windows Store): тест запускать `~/.local/bin/python3.15.exe`.
+    - Остановка `gradlew :server:run` не гасит java — перед перезапуском освободить порт 8080.
+    - Приложение v0.6 (`app/`) с API v0.7 не совместимо — переписывается в Э3–Э6.
+  - Следующий шаг: Э3 по `docs/v0.7/03_implementation_spec.md` (план сначала в `docs/v0.7/plans/`).

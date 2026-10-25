@@ -34,7 +34,22 @@ Android-приложение показывает сделку из схемы `
    ```
 
    Переменные: `MP_DB_URL` (по умолчанию `jdbc:postgresql://localhost:5432/postgres`), `MP_DB_USER` (`postgres`),
-   `MP_DB_PASSWORD` (обязательна), `MP_API_HOST` (`127.0.0.1`), `MP_API_PORT` (`8080`).
+   `MP_DB_PASSWORD` (обязательна), `MP_API_HOST` (`127.0.0.1`), `MP_API_PORT` (`8080`),
+   `MP_GEO_SECRET` (секрет смещения точек; без него — случайный на каждый запуск),
+   `MP_DEV_LOGIN=1` (вход по `agent_id` без пароля — только разработка),
+   `MP_OSM_FILE` (`data/kazakhstan-latest.osm.pbf`).
+
+   Маршруты такси строит GraphHopper по `server/data/kazakhstan-latest.osm.pbf` (Geofabrik). Первый запуск
+   импортирует граф в `server/data/gh-cache` — несколько минут и 1–2 ГБ памяти; дальше граф берётся из кэша.
+   Папка `server/data/` в git не попадает. Без файла остальные методы работают, маршрутные отвечают 503
+   `ROUTING_UNAVAILABLE`. Готовность — `GET /api/health` → `"routing":"готов"`.
+
+   Проверка по HTTP (сервер запущен, нужен Python 3; сценарии меняют данные БД):
+
+   ```powershell
+   $env:MP_TEST_PASSWORD = "<общий пароль тестовых пользователей>"
+   python server/tests/api_smoke.py
+   ```
 
 3. Проброс порта на эмулятор или телефон по USB:
 
@@ -53,18 +68,15 @@ Android-приложение показывает сделку из схемы `
 
 ## API
 
-| Метод | Ответ |
-| --- | --- |
-| `GET /api/health` | `{"status":"ok"}` |
-| `GET /api/map/base-layers?lang=1` | Подложки карты из справочника `MAP_BASE_LAYER` |
-| `GET /api/services?lang=1&q=стрижк` | Поиск по дереву услуг (`v_service_search`) |
-| `GET /api/icons` | Пиктограммы (SVG) |
-| `GET /api/deals/{id}?lang=1` | Сделка: услуга, статус, точка, радиус, настройки |
-| `GET /api/deals/{id}/offers` | Отклики в порядке вывода (`v_deal_offer_list`) |
-| `GET /api/deals/{id}/routes?lang=1` | Ссылки на маршрут после согласования (`v_deal_offer_route`) |
-| `POST /api/deals/{id}/offers/{offerId}/agree` | Согласовать отклик (только из статуса `OFFERS`) |
+API v0.7 — 39 методов: вход, конфигурация интерфейса, справочники, положение, запрос клиента, отклики,
+согласование, публикации поставщика, закрытие кодом, отмена, баллы, уведомления. Полное описание —
+[server/openapi.yaml](server/openapi.yaml).
 
-Авторизации нет: сервер только для локальной разработки, клиент сделки — агент из тестовых данных.
+Вход: `POST /api/session {login, password}` → `token`, дальше заголовок `Authorization: Bearer <token>`.
+Язык ответа — `Accept-Language: RUS|ENG|KAZ|DEU`. Ошибки — `{"error": "...", "code": "КОД"}`; правила сделки
+проверяет БД, их нарушение — 409 с кодом причины.
+
+Приложение v0.6 (`app/`) с API v0.7 не совместимо — переписывается в этапах Э3–Э6.
 
 ## Карта
 

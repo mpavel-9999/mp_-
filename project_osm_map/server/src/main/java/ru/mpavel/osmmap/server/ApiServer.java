@@ -2,113 +2,59 @@ package ru.mpavel.osmmap.server;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import org.postgresql.util.PSQLException;
+import org.postgresql.util.ServerErrorMessage;
+import ru.mpavel.osmmap.server.Http.ApiException;
+import ru.mpavel.osmmap.server.Http.Request;
+import ru.mpavel.osmmap.server.Http.Response;
 
+import java.io.File;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.net.InetSocketAddress;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
+import java.security.SecureRandom;
 import java.sql.SQLException;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.HexFormat;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Локальный API над схемой mp_service.
- * JSON собирает сам PostgreSQL (json_agg / row_to_json), сервер только передает его клиенту.
- * Пароль БД задается переменной окружения и в приложение не попадает.
+ * API v0.7 над схемой mp_service (docs/v0.7/03_implementation_spec.md, раздел 4).
+ * Правила процесса сделки проверяет БД; сервер: сессии, код закрытия, маршруты по дорогам, плановые задания.
+ * JSON ответов собирает PostgreSQL, тело запроса разбирается в SQL как jsonb.
  *
  * Переменные окружения:
  *   MP_DB_URL      jdbc:postgresql://localhost:5432/postgres
  *   MP_DB_USER     postgres
  *   MP_DB_PASSWORD обязательна
- *   MP_API_HOST    127.0.0.1 (эмулятор Android видит его как 10.0.2.2)
+ *   MP_API_HOST    127.0.0.1 (эмуляторы - через adb reverse tcp:8080 tcp:8080)
  *   MP_API_PORT    8080
- *
- * Авторизации нет: сервер только для локальной разработки, клиент сделки - агент из тестовых данных.
+ *   MP_GEO_SECRET  секрет смещения точек до согласования (без него - случайный на запуск)
+ *   MP_DEV_LOGIN   1 - вход по agent_id без пароля и список агентов (только разработка)
+ *   MP_OSM_FILE    data/kazakhstan-latest.osm.pbf (граф дорог для такси)
  */
 public final class ApiServer {
 
-    private static final Pattern DEAL = Pattern.compile("^/api/deals/(\\d+)$");
-    private static final Pattern DEAL_OFFERS = Pattern.compile("^/api/deals/(\\d+)/offers$");
-    private static final Pattern DEAL_ROUTES = Pattern.compile("^/api/deals/(\\d+)/routes$");
-    private static final Pattern DEAL_AGREE = Pattern.compile("^/api/deals/(\\d+)/offers/(\\d+)/agree$");
+    /** Обработчик метода API. */
+    interface Handler {
+        Response handle(Request r, Matcher m) throws SQLException;
+    }
 
-    private static final String SQL_BASE_LAYERS =
-        "SELECT coalesce(json_agg(b ORDER BY b.sort_order), '[]') FROM ("
-        + " SELECT d.dict_code AS code, d.sort_order, d.value_num AS version, d.value_text AS url,"
-        + "        gt.text_value AS attribution"
-        + " FROM mp_service.dictionary d"
-        + " JOIN mp_service.glossary_text gt ON gt.glossary_id = d.glossary_id AND gt.interface_lang_id = ?"
-        + " WHERE d.dict_type = 'MAP_BASE_LAYER' AND d.is_active = 1) b";
+    private record Route(String method, Pattern pattern, Handler handler) {
+    }
 
-    private static final String SQL_SERVICES =
-        "SELECT coalesce(json_agg(s ORDER BY s.service_path), '[]') FROM ("
-        + " SELECT service_id, node_type, parent_service_id, service_name, service_path, icon_id"
-        + " FROM mp_service.v_service_search"
-        + " WHERE interface_lang_id = ? AND (? = '' OR search_text LIKE '%' || lower(?) || '%')) s";
+    private static final Map<String, Integer> LANGS = Map.of("RUS", 1, "ENG", 2, "KAZ", 3, "DEU", 4);
 
-    private static final String SQL_ICONS =
-        "SELECT coalesce(json_agg(i ORDER BY i.icon_id), '[]') FROM ("
-        + " SELECT icon_id, icon_code, icon_svg FROM mp_service.icon WHERE is_active = 1) i";
+    private final List<Route> routes = new ArrayList<>();
+    private final Db db;
+    private final Auth auth;
 
-    private static final String SQL_DEAL =
-        "SELECT row_to_json(x) FROM ("
-        + " SELECT d.deal_id, d.service_id, gt.text_value AS service_name, ds.dict_code AS status,"
-        + "        d.client_agent_id, d.geo_lat, d.geo_lon, d.zone_radius_m, d.geo_to_lat, d.geo_to_lon,"
-        + "        d.period_start, d.period_end, d.price_forecast_min, d.price_forecast_max,"
-        + "        mp_service.get_setting(d.service_id, 'geo_mode') AS geo_mode,"
-        + "        mp_service.get_setting(d.service_id, 'price_unit') AS price_unit"
-        + " FROM mp_service.deal d"
-        + " JOIN mp_service.service s ON s.service_id = d.service_id"
-        + " JOIN mp_service.glossary_text gt ON gt.glossary_id = s.glossary_id AND gt.interface_lang_id = ?"
-        + " JOIN mp_service.dictionary ds ON ds.dict_id = d.deal_status_id"
-        + " WHERE d.deal_id = ?) x";
-
-    private static final String SQL_OFFERS =
-        "SELECT coalesce(json_agg(o ORDER BY o.position), '[]')"
-        + " FROM mp_service.v_deal_offer_list o WHERE o.deal_id = ?";
-
-    private static final String SQL_ROUTES =
-        "SELECT coalesce(json_agg(r ORDER BY r.deal_offer_id, r.sort_order), '[]') FROM ("
-        + " SELECT r.deal_offer_id, r.provider_code, r.sort_order, r.route_url, gt.text_value AS provider_name"
-        + " FROM mp_service.v_deal_offer_route r"
-        + " JOIN mp_service.dictionary m ON m.dict_type = 'MAP_ROUTE_LINK' AND m.dict_code = r.provider_code"
-        + " JOIN mp_service.glossary_text gt ON gt.glossary_id = m.glossary_id AND gt.interface_lang_id = ?"
-        + " WHERE r.deal_id = ?) r";
-
-    // Согласование отклика клиентом: только из статуса OFFERS, в одной транзакции
-    private static final String SQL_AGREE_SELECT =
-        "UPDATE mp_service.deal_offer SET is_selected = CASE WHEN deal_offer_id = ? THEN 1 ELSE 0 END"
-        + " WHERE deal_id = ?";
-    private static final String SQL_AGREE_DEAL =
-        "UPDATE mp_service.deal d"
-        + " SET provider_agent_id = o.provider_agent_id, price_provider = o.offer_price,"
-        + "     fee_amount = 0, price_total = o.offer_price,"
-        + "     deal_status_id = mp_service.dict_id('DEAL_STATUS', 'AGREED')"
-        + " FROM mp_service.deal_offer o"
-        + " WHERE o.deal_offer_id = ? AND o.deal_id = d.deal_id AND d.deal_id = ?"
-        + "   AND d.deal_status_id = mp_service.dict_id('DEAL_STATUS', 'OFFERS')";
-    private static final String SQL_AGREE_LOG =
-        "INSERT INTO mp_service.deal_status_log (deal_status_log_id, deal_id, deal_status_id, agent_id, comment)"
-        + " SELECT coalesce(max(deal_status_log_id), 0) + 1, ?, mp_service.dict_id('DEAL_STATUS', 'AGREED'),"
-        + "        (SELECT client_agent_id FROM mp_service.deal WHERE deal_id = ?), 'Согласовано в приложении'"
-        + " FROM mp_service.deal_status_log";
-
-    private final String dbUrl;
-    private final String dbUser;
-    private final String dbPassword;
-
-    private ApiServer(String dbUrl, String dbUser, String dbPassword) {
-        this.dbUrl = dbUrl;
-        this.dbUser = dbUser;
-        this.dbPassword = dbPassword;
+    private ApiServer(Db db, Auth auth) {
+        this.db = db;
+        this.auth = auth;
     }
 
     public static void main(String[] args) throws IOException {
@@ -117,18 +63,91 @@ public final class ApiServer {
             System.err.println("Задайте пароль БД в переменной окружения MP_DB_PASSWORD");
             System.exit(1);
         }
+        String geoSecret = env("MP_GEO_SECRET", null);
+        if (geoSecret == null) {
+            byte[] b = new byte[16];
+            new SecureRandom().nextBytes(b);
+            geoSecret = HexFormat.of().formatHex(b);
+            System.out.println("MP_GEO_SECRET не задан - смещения точек меняются при каждом запуске");
+        }
+        boolean devLogin = "1".equals(env("MP_DEV_LOGIN", "0"));
+        Db db = new Db(env("MP_DB_URL", "jdbc:postgresql://localhost:5432/postgres"), env("MP_DB_USER", "postgres"),
+                       password, geoSecret);
+        Auth auth = new Auth();
+        Routing routing = new Routing();
+        routing.start(new File(env("MP_OSM_FILE", "data/kazakhstan-latest.osm.pbf")), new File("data/gh-cache"));
+        Jobs jobs = new Jobs(db, auth);
+        jobs.setRouting(routing);
+
+        ConfigApi config = new ConfigApi(db, auth, devLogin);
+        DealApi deals = new DealApi(db, routing, jobs);
+        ProviderApi provider = new ProviderApi(db, routing, jobs, deals);
+
+        ApiServer api = new ApiServer(db, auth);
+        api.get("/api/health", (r, m) -> Response.ok("{\"status\":\"ok\",\"routing\":\"" + Http.escape(routing.state()) + "\"}"));
+        // 4.1 вход
+        api.route("POST", "/api/session", config::login);
+        api.route("DELETE", "/api/session", config::logout);
+        api.get("/api/dev/agents", config::devAgents);
+        // 4.2 конфигурация и справочники
+        api.get("/api/me", config::me);
+        api.get("/api/config", config::config);
+        api.route("PUT", "/api/config", config::saveConfig);
+        api.get("/api/ui/options", config::uiOptions);
+        api.get("/api/services", config::services);
+        api.get("/api/services/(\\d+)/form", config::form);
+        api.get("/api/services/(\\d+)/settings", config::settings);
+        api.get("/api/map/base-layers", config::baseLayers);
+        api.get("/api/icons", config::icons);
+        // 4.3 положение
+        api.route("PUT", "/api/me/position", config::position);
+        api.get("/api/deals/(\\d+)/positions", deals::positions);
+        // 4.4 клиент
+        api.get("/api/map/slots", deals::slots);
+        api.route("POST", "/api/forecast", deals::forecast);
+        api.route("POST", "/api/deals", deals::create);
+        api.get("/api/deals", deals::list);
+        api.get("/api/deals/(\\d+)", deals::get);
+        api.get("/api/deals/(\\d+)/offers", deals::offers);
+        api.route("POST", "/api/deals/(\\d+)/offers/(\\d+)/agree", deals::agree);
+        api.get("/api/deals/(\\d+)/routes", deals::routes);
+        // 4.5 поставщик
+        api.route("POST", "/api/slots", provider::publish);
+        api.get("/api/slots", provider::mySlots);
+        api.route("DELETE", "/api/slots/(\\d+)", provider::removeSlot);
+        api.get("/api/requests", provider::requests);
+        api.route("POST", "/api/deals/(\\d+)/offers", provider::offer);
+        api.route("PUT", "/api/me/services/(\\d+)", provider::saveService);
+        // 4.6 закрытие, отмена, баллы
+        api.route("POST", "/api/deals/(\\d+)/close/request", deals::closeRequest);
+        api.get("/api/deals/(\\d+)/close/code", deals::closeCode);
+        api.route("POST", "/api/deals/(\\d+)/close", deals::close);
+        api.route("POST", "/api/deals/(\\d+)/close/test-scan", deals::testScan);
+        api.route("POST", "/api/deals/(\\d+)/close/test-provide", deals::testProvide);
+        api.route("POST", "/api/deals/(\\d+)/cancel", deals::cancel);
+        api.route("POST", "/api/deals/(\\d+)/review", deals::review);
+        api.get("/api/me/pending-reviews", deals::pendingReviews);
+        // 4.7 уведомления
+        api.get("/api/notifications", deals::notifications);
+        api.route("POST", "/api/notifications/(\\d+)/read", deals::read);
+
         String host = env("MP_API_HOST", "127.0.0.1");
         int port = Integer.parseInt(env("MP_API_PORT", "8080"));
-        ApiServer api = new ApiServer(
-            env("MP_DB_URL", "jdbc:postgresql://localhost:5432/postgres"),
-            env("MP_DB_USER", "postgres"),
-            password);
-
         HttpServer server = HttpServer.create(new InetSocketAddress(host, port), 0);
         server.createContext("/api/", api::handle);
-        server.setExecutor(Executors.newFixedThreadPool(4));
+        server.setExecutor(Executors.newFixedThreadPool(8));
         server.start();
-        System.out.println("mp_service API: http://" + host + ":" + port + "/api/health");
+        jobs.start();
+        System.out.println("mp_service API v0.7: http://" + host + ":" + port + "/api/health"
+                           + (devLogin ? " (вход без пароля включен)" : ""));
+    }
+
+    private void route(String method, String path, Handler h) {
+        routes.add(new Route(method, Pattern.compile("^" + path + "$"), h));
+    }
+
+    private void get(String path, Handler h) {
+        route("GET", path, h);
     }
 
     private static String env(String name, String def) {
@@ -137,126 +156,70 @@ public final class ApiServer {
     }
 
     private void handle(HttpExchange ex) throws IOException {
-        String path = ex.getRequestURI().getPath();
-        String method = ex.getRequestMethod();
-        Map<String, String> q = query(ex.getRequestURI().getRawQuery());
+        Response response;
+        Request r = null;
         try {
-            int lang = Integer.parseInt(q.getOrDefault("lang", "1"));
-            Matcher m;
-            if (method.equals("GET") && path.equals("/api/health")) {
-                send(ex, 200, "{\"status\":\"ok\"}");
-            } else if (method.equals("GET") && path.equals("/api/map/base-layers")) {
-                send(ex, 200, json(SQL_BASE_LAYERS, lang));
-            } else if (method.equals("GET") && path.equals("/api/services")) {
-                String text = q.getOrDefault("q", "");
-                send(ex, 200, json(SQL_SERVICES, lang, text, text));
-            } else if (method.equals("GET") && path.equals("/api/icons")) {
-                send(ex, 200, json(SQL_ICONS));
-            } else if (method.equals("GET") && (m = DEAL.matcher(path)).matches()) {
-                String body = json(SQL_DEAL, lang, Long.parseLong(m.group(1)));
-                if (body == null) {
-                    send(ex, 404, error("Сделка не найдена"));
-                } else {
-                    send(ex, 200, body);
-                }
-            } else if (method.equals("GET") && (m = DEAL_OFFERS.matcher(path)).matches()) {
-                send(ex, 200, json(SQL_OFFERS, Long.parseLong(m.group(1))));
-            } else if (method.equals("GET") && (m = DEAL_ROUTES.matcher(path)).matches()) {
-                send(ex, 200, json(SQL_ROUTES, lang, Long.parseLong(m.group(1))));
-            } else if (method.equals("POST") && (m = DEAL_AGREE.matcher(path)).matches()) {
-                long dealId = Long.parseLong(m.group(1));
-                long offerId = Long.parseLong(m.group(2));
-                if (agree(dealId, offerId)) {
-                    send(ex, 200, json(SQL_OFFERS, dealId));
-                } else {
-                    send(ex, 409, error("Согласовать можно только отклик этой сделки в статусе OFFERS"));
-                }
-            } else {
-                send(ex, 404, error("Нет такого метода: " + method + " " + path));
-            }
+            r = new Request(ex);
+            r.agentId = auth.agent(r.header("Authorization"));
+            r.lang = lang(r);
+            response = dispatch(r);
+        } catch (ApiException e) {
+            response = Http.error(e.status, e.code, e.getMessage());
         } catch (NumberFormatException e) {
-            send(ex, 400, error("Неверный параметр: " + e.getMessage()));
-        } catch (SQLException e) {
-            System.err.println(method + " " + path + ": " + e.getMessage());
-            send(ex, 500, error("Ошибка БД: " + e.getMessage()));
+            response = Http.error(400, "BAD_REQUEST", "Неверный параметр: " + e.getMessage());
+        } catch (PSQLException e) {
+            response = fromDb(e);
+            if (response.status() >= 500) {
+                System.err.println((r == null ? "" : r.method + " " + r.path + ": ") + e.getMessage());
+            }
+        } catch (SQLException | RuntimeException e) {
+            System.err.println((r == null ? "" : r.method + " " + r.path + ": ") + e);
+            response = Http.error(500, "INTERNAL", e.getMessage());
         }
+        Http.send(ex, response);
     }
 
-    private Connection connect() throws SQLException {
-        return DriverManager.getConnection(dbUrl, dbUser, dbPassword);
-    }
-
-    /** Выполняет запрос, который возвращает одну ячейку с JSON; null - если строк нет. */
-    private String json(String sql, Object... params) throws SQLException {
-        try (Connection c = connect(); PreparedStatement ps = c.prepareStatement(sql)) {
-            bind(ps, params);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() ? rs.getString(1) : null;
+    private Response dispatch(Request r) throws SQLException {
+        boolean pathKnown = false;
+        for (Route route : routes) {
+            Matcher m = route.pattern().matcher(r.path);
+            if (m.matches()) {
+                pathKnown = true;
+                if (route.method().equals(r.method)) {
+                    return route.handler().handle(r, m);
+                }
             }
         }
+        throw new ApiException(pathKnown ? 405 : 404, "NOT_FOUND", "Нет такого метода: " + r.method + " " + r.path);
     }
 
-    private boolean agree(long dealId, long offerId) throws SQLException {
-        try (Connection c = connect()) {
-            c.setAutoCommit(false);
-            try {
-                int updated;
-                try (PreparedStatement ps = c.prepareStatement(SQL_AGREE_DEAL)) {
-                    bind(ps, offerId, dealId);
-                    updated = ps.executeUpdate();
-                }
-                if (updated != 1) {
-                    c.rollback();
-                    return false;
-                }
-                try (PreparedStatement ps = c.prepareStatement(SQL_AGREE_SELECT)) {
-                    bind(ps, offerId, dealId);
-                    ps.executeUpdate();
-                }
-                try (PreparedStatement ps = c.prepareStatement(SQL_AGREE_LOG)) {
-                    bind(ps, dealId, dealId);
-                    ps.executeUpdate();
-                }
-                c.commit();
-                return true;
-            } catch (SQLException e) {
-                c.rollback();
-                throw e;
-            }
+    /** Язык ответа: Accept-Language (RUS/ENG/...), иначе язык агента, иначе русский. */
+    private int lang(Request r) throws SQLException {
+        String h = r.header("Accept-Language");
+        if (h != null && LANGS.containsKey(h.trim().toUpperCase())) {
+            return LANGS.get(h.trim().toUpperCase());
         }
+        if (r.agentId != null) {
+            Long id = db.tx(r.agentId, c -> Db.cellLong(c, "SELECT interface_lang_id FROM agent WHERE agent_id = ?", r.agentId));
+            return id == null ? 1 : id.intValue();
+        }
+        return 1;
     }
 
-    private static void bind(PreparedStatement ps, Object... params) throws SQLException {
-        for (int i = 0; i < params.length; i++) {
-            ps.setObject(i + 1, params[i]);
-        }
-    }
-
-    private static Map<String, String> query(String raw) {
-        Map<String, String> map = new HashMap<>();
-        if (raw == null) {
-            return map;
-        }
-        for (String pair : raw.split("&")) {
-            int eq = pair.indexOf('=');
-            if (eq > 0) {
-                map.put(URLDecoder.decode(pair.substring(0, eq), StandardCharsets.UTF_8),
-                        URLDecoder.decode(pair.substring(eq + 1), StandardCharsets.UTF_8));
-            }
-        }
-        return map;
-    }
-
-    private static String error(String message) {
-        return "{\"error\":\"" + message.replace("\\", "\\\\").replace("\"", "\\\"") + "\"}";
-    }
-
-    private static void send(HttpExchange ex, int code, String body) throws IOException {
-        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-        ex.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
-        ex.sendResponseHeaders(code, bytes.length);
-        try (OutputStream os = ex.getResponseBody()) {
-            os.write(bytes);
-        }
+    /**
+     * Ошибка БД -> HTTP. Правила процесса (RAISE EXCEPTION) -> 409 с кодом из HINT;
+     * дубль -> 409; неверные данные и ограничения -> 400.
+     */
+    private static Response fromDb(PSQLException e) {
+        ServerErrorMessage msg = e.getServerErrorMessage();
+        String state = e.getSQLState() == null ? "" : e.getSQLState();
+        String text = msg != null && msg.getMessage() != null ? msg.getMessage() : e.getMessage();
+        String hint = msg == null ? null : msg.getHint();
+        return switch (state) {
+            case "P0001" -> Http.error(409, hint != null ? hint : "RULE", text);
+            case "23505" -> Http.error(409, "DUPLICATE", text);
+            case "23514", "23502", "23503", "22P02", "22007", "22008", "22003", "22023" -> Http.error(400, "BAD_REQUEST", text);
+            default -> Http.error(500, "DB_ERROR", text);
+        };
     }
 }

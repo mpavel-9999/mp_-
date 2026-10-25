@@ -17,6 +17,13 @@
       "input_tokens": 86718,
       "output_tokens": 0,
       "files": 4
+    },
+    {
+      "date": "2026-10-25T11:50:27.928638+00:00",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "files": 18,
+      "note": "update E2; subagent ~104k tokens"
     }
   ],
   "total_input_tokens": 360000,
