@@ -1,0 +1,7 @@
+# Служебный файл graphify: обновляется при каждом запросе к графу (graphify query)
+graphify-out/cache/last_query_stamp
+# Временные файлы обновления графа (удаляются в конце обновления; если оно прервалось - не коммитить)
+graphify-out/.graphify_*.json
+graphify-out/.graphify_uncached.txt
+!graphify-out/.graphify_labels.json
+!graphify-out/.graphify_labels.pending.json
