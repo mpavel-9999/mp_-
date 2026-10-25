@@ -2628,7 +2628,29 @@ INSERT INTO g_src VALUES
 -- Э5: время по Алматы (Р-4)
 (50115,'ui.err.period_in_past',      NULL,'Начало периода уже прошло - выберите время позже','The start time has already passed - choose a later time',NULL),
 (50116,'ui.err.period_invalid',      NULL,'Окончание должно быть позже начала','The end must be after the start',NULL),
-(50117,'ui.time_almaty',             25,'Время - по Алматы','Times are in Almaty time',NULL);
+(50117,'ui.time_almaty',             25,'Время - по Алматы','Times are in Almaty time',NULL),
+-- Э5: экраны поставщика
+(50118,'ui.provider',          NULL,'Поставщик','Provider',NULL),
+(50119,'ui.my_services',       NULL,'Мои сервисы','My services',NULL),
+(50120,'ui.no_slots',          NULL,'Активных публикаций нет','No active listings',NULL),
+(50121,'ui.no_requests',       NULL,'Подходящих запросов пока нет','No matching requests yet',NULL),
+(50122,'ui.slot_point',        NULL,'Место','Place',NULL),
+(50123,'ui.radius_a',          NULL,'Радиус у точки А','Radius at point A',NULL),
+(50124,'ui.radius_b',          NULL,'Радиус у точки Б','Radius at point B',NULL),
+(50125,'ui.remove_slot',       NULL,'Снять','Withdraw',NULL),
+(50126,'ui.offer_sent',        NULL,'Отклик отправлен','Offer sent',NULL),
+(50127,'ui.waiting_client',    NULL,'Ждём решения клиента','Waiting for the client''s decision',NULL),
+(50128,'ui.offer_declined',    NULL,'Клиент выбрал другого поставщика','The client chose another provider',NULL),
+(50129,'ui.work_time',         25,'Рабочее время','Working hours',NULL),
+(50130,'ui.price_max',         NULL,'Максимальная цена','Maximum price',NULL),
+(50131,'ui.client_rating_min', 18,'Рейтинг клиента от','Client rating from',NULL),
+(50132,'ui.capacity',          NULL,'Мест','Spaces',NULL),
+(50133,'ui.on_the_way',        NULL,'По пути','On your way',NULL),
+(50134,'ui.saved',             NULL,'Сохранено','Saved',NULL),
+(50135,'ui.err.not_on_the_way',      NULL,'Поездка не по вашему маршруту','This trip is not on your route',NULL),
+(50136,'ui.err.cannot_offer',        NULL,'Откликнуться на этот запрос нельзя','You cannot respond to this request',NULL),
+(50137,'ui.err.not_found',           NULL,'Не найдено - возможно, уже снято','Not found - it may have been removed',NULL),
+(50138,'ui.err.price_out_of_range',  NULL,'Цена вне ваших настроек сервиса','The price is outside your service settings',NULL);
 
 INSERT INTO glossary (glossary_id, glossary_code, icon_id) SELECT id, code, icon FROM g_src;
 INSERT INTO glossary_text (glossary_id, interface_lang_id, text_value, search_text)
@@ -2707,15 +2729,15 @@ INSERT INTO dictionary (dict_id, dict_type, dict_code, glossary_id, sort_order, 
 INSERT INTO dictionary (dict_id, dict_type, dict_code, glossary_id, sort_order, value_json) VALUES
 (111,'UI_TEMPLATE','A',30111,1,'{"code":"A","title":"Карта в центре","font":{"family":"Manrope","mono":null},
   "shape":{"corner":28,"chip":20,"button":28},
-  "screens":{"home":"map_sheet","deal_form":"sheet","offers":"map_sheet","deal":"sheet_timeline","provider_request":"sheet"},
+  "screens":{"home":"map_sheet","deal_form":"sheet","offers":"map_sheet","deal":"sheet_timeline","provider_request":"sheet","slot_form":"sheet"},
   "navigation":"top_actions","map":{"position":"full","sheet_peek":360}}'),
 (112,'UI_TEMPLATE','B',30112,2,'{"code":"B","title":"Карточки","font":{"family":"Golos Text","mono":null},
   "shape":{"corner":20,"chip":12,"button":18},
-  "screens":{"home":"tiles","deal_form":"wizard","offers":"cards_toggle","deal":"cards_timeline","provider_request":"cards"},
+  "screens":{"home":"tiles","deal_form":"wizard","offers":"cards_toggle","deal":"cards_timeline","provider_request":"cards","slot_form":"wizard"},
   "navigation":"bottom_tabs","map":{"position":"card","sheet_peek":0}}'),
 (113,'UI_TEMPLATE','C',30113,3,'{"code":"C","title":"Диспетчер","font":{"family":"Onest","mono":"JetBrains Mono"},
   "shape":{"corner":14,"chip":8,"button":14},
-  "screens":{"home":"dense_list","deal_form":"form_rows","offers":"map_table","deal":"dense_rows","provider_request":"dense"},
+  "screens":{"home":"dense_list","deal_form":"form_rows","offers":"map_table","deal":"dense_rows","provider_request":"dense","slot_form":"form_rows"},
   "navigation":"fab","map":{"position":"top","sheet_peek":0}}');
 
 -- Цветовые схемы: parent_dict_id - шаблон; контраст текста к фону не ниже 4.5:1

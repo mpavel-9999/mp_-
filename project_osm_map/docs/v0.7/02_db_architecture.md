@@ -332,7 +332,8 @@ erDiagram
     "deal_form": "sheet",
     "offers": "map_sheet",
     "deal": "sheet_timeline",
-    "provider_request": "sheet"
+    "provider_request": "sheet",
+    "slot_form": "sheet"
   },
   "navigation": "top_actions",
   "map": {"position": "full", "sheet_peek": 360},
@@ -345,6 +346,9 @@ erDiagram
 | `screens.home` | `map_sheet` | `tiles` | `dense_list` |
 | `screens.deal_form` | `sheet` | `wizard` | `form_rows` |
 | `screens.offers` | `map_sheet` | `cards_toggle` | `map_table` |
+| `screens.deal` | `sheet_timeline` | `cards_timeline` | `dense_rows` |
+| `screens.provider_request` | `sheet` | `cards` | `dense` |
+| `screens.slot_form` (Э5) | `sheet` | `wizard` | `form_rows` |
 | `navigation` | `top_actions` | `bottom_tabs` | `fab` |
 | `font.family` | Manrope | Golos Text | Onest + JetBrains Mono |
 
