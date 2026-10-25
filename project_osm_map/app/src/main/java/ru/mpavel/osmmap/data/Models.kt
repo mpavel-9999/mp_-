@@ -46,6 +46,8 @@ data class MyService(
     val name: String,
     val nodeType: String? = null,
     val priceUnit: String? = null,
+    /** point / route / none: без гео публикация не нужна. */
+    val geoMode: String? = null,
     val lat: Double? = null,
     val lon: Double? = null,
     val zoneRadiusM: Double? = null,

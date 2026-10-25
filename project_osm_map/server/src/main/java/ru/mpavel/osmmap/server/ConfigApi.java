@@ -84,7 +84,7 @@ final class ConfigApi {
             + " 'pending_reviews', agent_pending_reviews(a.agent_id),"
             + " 'services', (SELECT coalesce(json_agg(json_build_object("
             + "        'service_id', s.service_id, 'name', gt.text_value, 'node_type', sv.node_type,"
-            + "        'price_unit', get_setting(s.service_id, 'price_unit'),"
+            + "        'price_unit', get_setting(s.service_id, 'price_unit'), 'geo_mode', get_setting(s.service_id, 'geo_mode'),"
             + "        'lat', s.geo_lat, 'lon', s.geo_lon, 'zone_radius_m', s.zone_radius_m,"
             + "        'work_time_from', s.work_time_from, 'work_time_to', s.work_time_to,"
             + "        'price_min', s.price_min, 'price_max', s.price_max, 'unit_price_min', s.unit_price_min,"

@@ -909,6 +909,7 @@ components:
               name: { type: string }
               node_type: { type: string }
               price_unit: { type: string }
+              geo_mode: { type: string, enum: [point, route, none] }
               lat: { type: number, nullable: true }
               lon: { type: number, nullable: true }
               zone_radius_m: { type: number, nullable: true }
