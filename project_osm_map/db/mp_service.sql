@@ -2650,7 +2650,11 @@ INSERT INTO g_src VALUES
 (50135,'ui.err.not_on_the_way',      NULL,'Поездка не по вашему маршруту','This trip is not on your route',NULL),
 (50136,'ui.err.cannot_offer',        NULL,'Откликнуться на этот запрос нельзя','You cannot respond to this request',NULL),
 (50137,'ui.err.not_found',           NULL,'Не найдено - возможно, уже снято','Not found - it may have been removed',NULL),
-(50138,'ui.err.price_out_of_range',  NULL,'Цена вне ваших настроек сервиса','The price is outside your service settings',NULL);
+(50138,'ui.err.price_out_of_range',  NULL,'Цена вне ваших настроек сервиса','The price is outside your service settings',NULL),
+-- Э5 шаг 6: статусы публикации (provider_slot.slot_status) и форма
+(50139,'ui.slot_closed',       NULL,'Завершена','Ended',NULL),
+(50140,'ui.slot_cancelled',    NULL,'Снята','Withdrawn',NULL),
+(50141,'ui.route_preview',     NULL,'Линия маршрута построится по дорогам после публикации','The road route is built after publishing',NULL);
 
 INSERT INTO glossary (glossary_id, glossary_code, icon_id) SELECT id, code, icon FROM g_src;
 INSERT INTO glossary_text (glossary_id, interface_lang_id, text_value, search_text)

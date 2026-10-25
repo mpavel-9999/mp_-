@@ -229,6 +229,13 @@ private fun SlotRow(slot: Slot, removing: Boolean, onRemove: () -> Unit) {
             TextButton(onClick = onRemove, enabled = !removing, modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(t("ui.remove_slot"))
             }
+        } else {
+            // closed - окно прошло, cancelled - снята поставщиком
+            Text(
+                if (slot.slotStatus == "cancelled") t("ui.slot_cancelled") else t("ui.slot_closed"),
+                style = MaterialTheme.typography.labelMedium,
+                color = Mp.colors.textMuted,
+            )
         }
     }
 }

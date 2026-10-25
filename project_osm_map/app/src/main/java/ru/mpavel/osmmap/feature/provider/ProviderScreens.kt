@@ -13,12 +13,7 @@ import ru.mpavel.osmmap.AppGraph
 import ru.mpavel.osmmap.Nav
 import ru.mpavel.osmmap.core.i18n.t
 
-// Заготовки экранов поставщика (план Э5, шаг 4): маршруты уже работают,
-// содержимое - на шагах 6 (публикация) и 9 (настройки сервиса).
-
-/** Публикация окна или маршрута по сервису [serviceId]. */
-@Composable
-fun SlotScreen(graph: AppGraph, nav: Nav, serviceId: Long) = Placeholder("ui.slot_window")
+// Заготовка экрана поставщика (план Э5, шаг 4): маршрут уже работает, содержимое - на шаге 9.
 
 /** Настройки поставщика по сервису [serviceId]. */
 @Composable
