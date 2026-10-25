@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Services marketplace</string>
+    <string name="osm_attribution">© OpenStreetMap contributors</string>
+    <string name="login_title">Sign in</string>
+    <string name="login_agents">Test agents</string>
+    <string name="login_dev_hint">Password-free login — development only</string>
+    <string name="login_by_password">Sign in with login and password</string>
+    <string name="login_by_agent">Choose a test agent</string>
+    <string name="login_login">Login</string>
+    <string name="login_password">Password</string>
+    <string name="login_submit">Sign in</string>
+    <string name="login_testing">test</string>
+    <string name="login_failed">Wrong login or password</string>
+    <string name="error_network">No connection to the server %1$s</string>
+    <string name="error_failed">Error: %1$s</string>
+    <string name="retry">Retry</string>
+    <string name="loading">Loading…</string>
+</resources>

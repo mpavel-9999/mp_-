@@ -1,0 +1,11 @@
+[{"agent_id":1,"pseudonym":"Ivan_A","is_testing":true,"roles":["CLIENT", "ADMIN"],"login":null}, 
+ {"agent_id":2,"pseudonym":"Петр_Парковка","is_testing":true,"roles":["CLIENT", "PROVIDER", "ADMIN"],"login":null}, 
+ {"agent_id":3,"pseudonym":null,"is_testing":false,"roles":["COMPANY"],"login":null}, 
+ {"agent_id":4,"pseudonym":"ErlanPark","is_testing":false,"roles":["PROVIDER", "SUBAGENT"],"login":null}, 
+ {"agent_id":5,"pseudonym":"Айгерим","is_testing":false,"roles":["PROVIDER"],"login":null}, 
+ {"agent_id":6,"pseudonym":"ViktorK","is_testing":false,"roles":["PROVIDER"],"login":null}, 
+ {"agent_id":7,"pseudonym":"Тестер_1","is_testing":true,"roles":["CLIENT", "PROVIDER", "ADMIN"],"login":"user_testing_1"}, 
+ {"agent_id":8,"pseudonym":"Тестер_2","is_testing":true,"roles":["CLIENT", "PROVIDER", "ADMIN"],"login":"user_testing_2"}, 
+ {"agent_id":9,"pseudonym":"Тестер_3","is_testing":true,"roles":["CLIENT", "PROVIDER", "ADMIN"],"login":"user_testing_3"}, 
+ {"agent_id":10,"pseudonym":"Тестер_4","is_testing":true,"roles":["CLIENT", "PROVIDER", "ADMIN"],"login":"user_testing_4"}, 
+ {"agent_id":11,"pseudonym":"Тестер_5","is_testing":true,"roles":["CLIENT", "PROVIDER", "ADMIN"],"login":"user_testing_5"}]

@@ -1,0 +1,154 @@
+package ru.mpavel.osmmap
+
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import ru.mpavel.osmmap.core.i18n.LocalTexts
+import ru.mpavel.osmmap.core.i18n.Texts
+import ru.mpavel.osmmap.core.icons.IconSet
+import ru.mpavel.osmmap.core.icons.LocalIcons
+import ru.mpavel.osmmap.core.net.ApiError
+import ru.mpavel.osmmap.core.net.AppError
+import ru.mpavel.osmmap.core.theme.MpTheme
+import ru.mpavel.osmmap.feature.home.HomeScreen
+import ru.mpavel.osmmap.feature.login.LoginScreen
+import ru.mpavel.osmmap.feature.profile.ProfileScreen
+import ru.mpavel.osmmap.feature.settings.SettingsScreen
+import ru.mpavel.osmmap.ui.common.ErrorBox
+import ru.mpavel.osmmap.ui.common.LoadingBox
+import ru.mpavel.osmmap.ui.map.LocalBaseLayer
+import ru.mpavel.osmmap.ui.template.AppFrame
+import ru.mpavel.osmmap.ui.template.Tab
+
+// Маршруты навигации (типобезопасные, kotlinx.serialization)
+@Serializable
+object HomeRoute
+
+@Serializable
+object SettingsRoute
+
+@Serializable
+object ProfileRoute
+
+/** Состояние приложения: вход -> конфигурация интерфейса -> экраны. */
+sealed interface AppState {
+    data object Starting : AppState
+    data object LoggedOut : AppState
+    data object Ready : AppState
+    data class Failed(val error: AppError) : AppState
+}
+
+class AppViewModel(private val graph: AppGraph) : ViewModel() {
+
+    private val _state = MutableStateFlow<AppState>(AppState.Starting)
+    val state: StateFlow<AppState> = _state
+
+    init {
+        viewModelScope.launch {
+            graph.api.unauthorized.collect {
+                graph.session.forget()
+                _state.value = AppState.LoggedOut
+            }
+        }
+        if (graph.session.isLoggedIn) loadConfig() else _state.value = AppState.LoggedOut
+    }
+
+    /** GET /config: без сессии конфигурации нет, поэтому порядок - вход, затем конфигурация. */
+    fun loadConfig() {
+        viewModelScope.launch {
+            _state.value = AppState.Starting
+            _state.value = try {
+                graph.config.load()
+                AppState.Ready
+            } catch (e: ApiError) {
+                if (e.status == 401) AppState.LoggedOut else AppState.Failed(e)
+            } catch (e: AppError) {
+                AppState.Failed(e)
+            }
+        }
+    }
+
+    fun logout() {
+        viewModelScope.launch {
+            runCatching { graph.session.logout() }
+            _state.value = AppState.LoggedOut
+        }
+    }
+}
+
+/** Корень интерфейса: тема, тексты и пиктограммы из конфигурации; смена конфигурации перестраивает всё сразу. */
+@Composable
+fun App(graph: AppGraph) {
+    val vm: AppViewModel = viewModel { AppViewModel(graph) }
+    val state by vm.state.collectAsStateWithLifecycle()
+    val config by graph.config.config.collectAsStateWithLifecycle()
+
+    MpTheme(config?.scheme, config?.template) {
+        CompositionLocalProvider(
+            LocalTexts provides remember(config) { Texts.of(config) },
+            LocalIcons provides remember(config) { IconSet.of(config) },
+            LocalBaseLayer provides config?.baseLayer,
+        ) {
+            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                when (val s = state) {
+                    AppState.Starting -> LoadingBox()
+                    AppState.LoggedOut -> LoginScreen(graph, onLoggedIn = vm::loadConfig)
+                    is AppState.Failed -> ErrorBox(s.error, onRetry = vm::loadConfig)
+                    AppState.Ready -> MainNav(graph, onLogout = vm::logout)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MainNav(graph: AppGraph, onLogout: () -> Unit) {
+    val nav = rememberNavController()
+    val entry by nav.currentBackStackEntryAsState()
+    val destination = entry?.destination
+    val current = when {
+        destination?.hasRoute<SettingsRoute>() == true -> Tab.SETTINGS
+        destination?.hasRoute<ProfileRoute>() == true -> Tab.PROFILE
+        else -> Tab.HOME
+    }
+    AppFrame(
+        current = current,
+        onTab = { tab ->
+            val route: Any = when (tab) {
+                Tab.HOME -> HomeRoute
+                Tab.SETTINGS -> SettingsRoute
+                Tab.PROFILE -> ProfileRoute
+            }
+            nav.navigate(route) {
+                popUpTo(HomeRoute) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
+        },
+        onBack = { nav.popBackStack() },
+    ) { modifier ->
+        NavHost(nav, startDestination = HomeRoute, modifier = modifier) {
+            composable<HomeRoute> { HomeScreen(graph) }
+            composable<SettingsRoute> { SettingsScreen(graph) }
+            composable<ProfileRoute> { ProfileScreen(graph, onLogout = onLogout) }
+        }
+    }
+}
