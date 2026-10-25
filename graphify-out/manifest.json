@@ -1,9 +1,9 @@
 {
   "CLAUDE.md": {
-    "mtime": 1792941747.7317822,
-    "seen": 1792957382.1035385,
-    "ast_hash": "5b650f705499d00b490161ad6d4deb5c",
-    "semantic_hash": "5b650f705499d00b490161ad6d4deb5c"
+    "mtime": 1792958629.6249907,
+    "seen": 1792958860.7382317,
+    "ast_hash": "1b6f6f409fa3f0f1279324746392aa53",
+    "semantic_hash": "1b6f6f409fa3f0f1279324746392aa53"
   },
   "project_osm_map/app/build.gradle.kts": {
     "mtime": 1792938840.2096715,
@@ -448,5 +448,11 @@
     "seen": 1792957382.1035385,
     "ast_hash": "2394e781c27170c79376d5765763eb8a",
     "semantic_hash": "2394e781c27170c79376d5765763eb8a"
+  },
+  "tools/backup/hourly_backup.ps1": {
+    "mtime": 1792958181.1188898,
+    "seen": 1792958860.7382317,
+    "ast_hash": "f23a6e2a4358a84d1ff6b59b3ab7ecb2",
+    "semantic_hash": "f23a6e2a4358a84d1ff6b59b3ab7ecb2"
   }
 }
