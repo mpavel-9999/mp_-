@@ -525,6 +525,8 @@ CREATE TABLE agent_sanction (
 -- Аргументы триггера - пары: имя колонки, ожидаемый dict_type.
 CREATE FUNCTION check_dict_type()
 RETURNS trigger LANGUAGE plpgsql SET search_path = mp_service AS $$
+    -- Что делает: Триггер: проверяет, что значение общего справочника в колонке имеет ожидаемый dict_type (ОВ-22).
+    -- Методика: Аргументы триггера - пары (колонка, тип); значение колонки берется из to_jsonb(NEW), тип ищется в dictionary; несовпадение - исключение.
 DECLARE
     i        int;
     v_value  text;
@@ -566,12 +568,16 @@ CREATE TRIGGER trg_agent_sanction_dict BEFORE INSERT OR UPDATE ON agent_sanction
 -- Id значения общего справочника по типу и коду
 CREATE FUNCTION dict_id(p_type text, p_code text)
 RETURNS numeric LANGUAGE sql STABLE SET search_path = mp_service AS $$
+    -- Что делает: Возвращает id значения общего справочника по типу и коду.
+    -- Методика: Прямой поиск по уникальной паре (dict_type, dict_code).
     SELECT dict_id FROM dictionary WHERE dict_type = p_type AND dict_code = p_code
 $$;
 
 -- Расстояние между точками в метрах (гаверсинус). При переходе на PostGIS - ST_Distance.
 CREATE FUNCTION geo_distance_m(lat1 numeric, lon1 numeric, lat2 numeric, lon2 numeric)
 RETURNS numeric LANGUAGE sql IMMUTABLE STRICT AS $$
+    -- Что делает: Расстояние между двумя точками по прямой, м.
+    -- Методика: Формула гаверсинуса на сфере радиусом 6 371 км, округление до 0,1 м; при переходе на PostGIS - ST_Distance.
     SELECT round((2 * 6371000 * asin(sqrt(
                power(sin(radians(lat2 - lat1) / 2), 2) +
                cos(radians(lat1)) * cos(radians(lat2)) *
@@ -581,6 +587,8 @@ $$;
 -- Ключ сортировки отклика по спецификации 'distance:asc' | 'rating:desc' | 'price:asc'
 CREATE FUNCTION offer_sort_key(p_spec text, p_distance numeric, p_rating numeric, p_price numeric)
 RETURNS numeric LANGUAGE sql IMMUTABLE AS $$
+    -- Что делает: Ключ сортировки отклика по спецификации "поле:направление" (distance/rating/price, asc/desc).
+    -- Методика: Берет значение нужного поля и умножает на -1 для desc, чтобы все ключи сортировать по возрастанию.
     SELECT (CASE split_part(p_spec, ':', 1)
                 WHEN 'distance' THEN p_distance
                 WHEN 'rating'   THEN p_rating
@@ -607,6 +615,8 @@ SELECT service_id, ancestor_id, depth FROM t;
 -- Если передан рейтинг - сначала строки с подходящим диапазоном рейтинга.
 CREATE FUNCTION get_setting(p_service_id numeric, p_code text, p_rating numeric DEFAULT NULL)
 RETURNS text LANGUAGE sql STABLE SET search_path = mp_service AS $$
+    -- Что делает: Значение настройки сервиса для узла дерева с учетом наследования и рейтинга поставщика.
+    -- Методика: Ищет строки настройки на узле и его предках, затем на платформе; ближайший узел побеждает, при переданном рейтинге сначала строки с подходящим диапазоном.
     SELECT ss.setting_value
     FROM service_setting ss
     LEFT JOIN v_service_tree t ON t.service_id = p_service_id AND t.ancestor_id = ss.service_id
@@ -623,6 +633,8 @@ $$;
 -- Узел уровня "сервис" для любого узла (рейтинг и отчеты ведутся по нему)
 CREATE FUNCTION service_base_id(p_service_id numeric)
 RETURNS numeric LANGUAGE sql STABLE SET search_path = mp_service AS $$
+    -- Что делает: Узел уровня "сервис" для любого узла дерева (по нему ведутся рейтинг и отчеты).
+    -- Методика: Поднимается по v_service_tree до ближайшего предка типа service или system.
     SELECT t.ancestor_id
     FROM v_service_tree t JOIN service s ON s.service_id = t.ancestor_id
     WHERE t.service_id = p_service_id AND s.node_type IN ('service','system')
@@ -756,18 +768,24 @@ JOIN agent_role ar ON ar.agent_id = f.agent_id
 -- Загрузка тестовых данных: триггеры процесса не проверяют и не логируют
 CREATE FUNCTION is_load_mode()
 RETURNS boolean LANGUAGE sql STABLE AS $$
+    -- Что делает: Признак загрузки тестовых данных (mp.load_mode = on).
+    -- Методика: Читает параметр сессии; триггеры процесса в этом режиме не проверяют и не логируют.
     SELECT coalesce(current_setting('mp.load_mode', true), '') = 'on'
 $$;
 
 -- Агент текущей сессии API; NULL - система (плановые задания)
 CREATE FUNCTION session_agent_id()
 RETURNS numeric LANGUAGE sql STABLE AS $$
+    -- Что делает: Агент, от имени которого действует текущая сессия API; NULL - система.
+    -- Методика: Читает параметр сессии mp.agent_id, который задает сервер на каждый запрос.
     SELECT nullif(current_setting('mp.agent_id', true), '')::numeric
 $$;
 
 -- Вход по логину и паролю: id агента или NULL. Логин без учета регистра; фиксирует дату входа.
 CREATE FUNCTION agent_login_check(p_login text, p_password text)
 RETURNS numeric LANGUAGE plpgsql SET search_path = mp_service AS $$
+    -- Что делает: Проверка логина и пароля: возвращает id агента или NULL, фиксирует дату входа.
+    -- Методика: Логин приводится к нижнему регистру; пароль сравнивается с хешем bcrypt через crypt() из pgcrypto; учитываются только активные вход и агент.
 DECLARE
     v_agent numeric;
 BEGIN
@@ -786,6 +804,8 @@ $$;
 -- Псевдоним агента (атрибут 16, виден всем)
 CREATE FUNCTION agent_pseudonym(p_agent_id numeric)
 RETURNS text LANGUAGE sql STABLE SET search_path = mp_service AS $$
+    -- Что делает: Псевдоним агента (атрибут 16, виден всем).
+    -- Методика: Последнее активное значение атрибута из истории agent_attribute.
     SELECT aa.attribute_value FROM agent_attribute aa
     WHERE aa.agent_id = p_agent_id AND aa.attribute_id = 16 AND aa.is_active = 1
     ORDER BY aa.date_start DESC LIMIT 1
@@ -796,6 +816,8 @@ $$;
 CREATE FUNCTION agent_rating(p_agent_id numeric, p_role_code text, p_service_id numeric,
                              p_on date DEFAULT current_date)
 RETURNS numeric LANGUAGE sql STABLE SET search_path = mp_service AS $$
+    -- Что делает: Итоговый рейтинг агента в роли по сервису на дату; без истории - rating_start (В-4).
+    -- Методика: Последняя запись rating_history по узлу уровня "сервис" не позже даты; если ее нет - настройка rating_start.
     SELECT coalesce(
         (SELECT rh.total_rating FROM rating_history rh
          WHERE rh.agent_id = p_agent_id AND rh.role_id = dict_id('ROLE', p_role_code)
@@ -806,6 +828,8 @@ $$;
 
 CREATE FUNCTION agent_has_rating(p_agent_id numeric, p_role_code text, p_service_id numeric)
 RETURNS boolean LANGUAGE sql STABLE SET search_path = mp_service AS $$
+    -- Что делает: Есть ли у агента история рейтинга в роли по сервису (иначе пометка "новичок").
+    -- Методика: Проверка существования записи rating_history по узлу уровня "сервис".
     SELECT EXISTS (SELECT 1 FROM rating_history rh
                    WHERE rh.agent_id = p_agent_id AND rh.role_id = dict_id('ROLE', p_role_code)
                      AND rh.service_id = service_base_id(p_service_id))
@@ -815,6 +839,8 @@ $$;
 -- или вариант из списка принимаемых классов (accepts_variants: Комфорт берет Эконом)
 CREATE FUNCTION service_covers(p_provider_service_id numeric, p_deal_service_id numeric)
 RETURNS boolean LANGUAGE sql STABLE SET search_path = mp_service AS $$
+    -- Что делает: Подключенный узел поставщика покрывает узел сделки.
+    -- Методика: Да, если узел поставщика - предок узла сделки по дереву, или узел сделки входит в настройку accepts_variants (классы авто).
     SELECT EXISTS (SELECT 1 FROM v_service_tree t
                    WHERE t.service_id = p_deal_service_id AND t.ancestor_id = p_provider_service_id)
         OR p_deal_service_id::text = ANY (string_to_array(
@@ -824,6 +850,8 @@ $$;
 -- Период сделки внутри рабочего времени; окно может переходить через полночь (П-6)
 CREATE FUNCTION period_in_work_time(p_from time, p_to time, p_start timestamp, p_end timestamp)
 RETURNS boolean LANGUAGE sql IMMUTABLE AS $$
+    -- Что делает: Период сделки помещается в рабочее время; окно может переходить через полночь (П-6).
+    -- Методика: Строит интервалы рабочего окна на день начала периода и на предыдущий день (для ночных окон) и проверяет вхождение tsrange.
     SELECT p_from IS NULL OR p_to IS NULL OR EXISTS (
         SELECT 1 FROM (VALUES (0), (-1)) d(shift)
         WHERE tsrange(p_start, p_end, '[]') <@ tsrange(
@@ -837,6 +865,8 @@ $$;
 -- после односторонней отмены - пострадавшая сторона (п. 5.6, В-11)
 CREATE FUNCTION agent_pending_reviews(p_agent_id numeric)
 RETURNS bigint LANGUAGE sql STABLE SET search_path = mp_service AS $$
+    -- Что делает: Число сделок, по которым агент еще не выставил баллы (п. 5.6, В-11).
+    -- Методика: Закрытые сделки - для обеих сторон, отмены со штрафом - для пострадавшей стороны; без записи deal_review от агента.
     SELECT count(*)
     FROM deal d
     JOIN dictionary s ON s.dict_id = d.deal_status_id
@@ -851,6 +881,8 @@ $$;
 -- Сколько сделок поставщик может держать одновременно по сервису (п. 2.8)
 CREATE FUNCTION provider_limit(p_agent_id numeric, p_service_id numeric)
 RETURNS numeric LANGUAGE sql STABLE SET search_path = mp_service AS $$
+    -- Что делает: Сколько сделок поставщик может держать одновременно по сервису (п. 2.8).
+    -- Методика: Емкость из agent_service, если задана, иначе настройка max_parallel_deals, иначе 1.
     SELECT coalesce(
         (SELECT ags.capacity FROM agent_service ags
          WHERE ags.agent_id = p_agent_id AND ags.is_active = 1 AND service_covers(ags.service_id, p_service_id)
@@ -863,6 +895,8 @@ $$;
 CREATE FUNCTION provider_busy(p_agent_id numeric, p_service_id numeric, p_start timestamp, p_end timestamp,
                               p_exclude_deal_id numeric DEFAULT NULL)
 RETURNS bigint LANGUAGE sql STABLE SET search_path = mp_service AS $$
+    -- Что делает: Сколько согласованных сделок поставщика того же сервиса пересекается с периодом.
+    -- Методика: Считает сделки в AGREED/CONTACT с тем же узлом уровня "сервис" и пересечением tsrange, кроме исключаемой.
     SELECT count(*)
     FROM deal x JOIN dictionary s ON s.dict_id = x.deal_status_id
     WHERE x.provider_agent_id = p_agent_id AND s.dict_code IN ('AGREED','CONTACT')
@@ -880,6 +914,8 @@ CREATE FUNCTION provider_can_offer(p_deal_id numeric, p_agent_id numeric,
                                    p_lat numeric DEFAULT NULL, p_lon numeric DEFAULT NULL,
                                    OUT ok boolean, OUT reason text)
 LANGUAGE plpgsql STABLE SET search_path = mp_service AS $$
+    -- Что делает: Может ли поставщик откликнуться на сделку: все условия п. 2.1-2.9 алгоритма; возвращает ok и код причины.
+    -- Методика: Последовательно проверяет: статус сделки, не сам клиент, баллы, доступ к сервису (дерево, классы, подписка), блокировку, рейтинги, окно публикации или рабочее время, гео по place_mode, цену, лимит одновременных сделок; первая невыполненная проверка дает reason. Маршрут такси проверяет сервер.
 DECLARE
     d        deal%ROWTYPE;
     v_status text;
@@ -985,6 +1021,8 @@ $$;
 -- Уведомление агенту в приложение (тексты - в глоссарии типа уведомления)
 CREATE FUNCTION notify_agent(p_agent_id numeric, p_deal_id numeric, p_type text, p_payload jsonb DEFAULT '{}')
 RETURNS void LANGUAGE sql SET search_path = mp_service AS $$
+    -- Что делает: Создает уведомление агенту в приложение.
+    -- Методика: Вставка в notification с типом из справочника NOTIFY_TYPE, каналом in_app и временем отправки; пустой получатель пропускается.
     INSERT INTO notification (agent_id, deal_id, notify_type_id, channel, payload, date_sent)
     SELECT p_agent_id, p_deal_id, dict_id('NOTIFY_TYPE', p_type), 'in_app', coalesce(p_payload, '{}'), now()
     WHERE p_agent_id IS NOT NULL
@@ -997,6 +1035,8 @@ CREATE FUNCTION register_fraud_episode(p_agent_id numeric, p_reason_code text, p
                                        p_reviews_suspicious boolean DEFAULT false,
                                        p_revenue_drop boolean DEFAULT false)
 RETURNS text LANGUAGE plpgsql SET search_path = mp_service AS $$
+    -- Что делает: Регистрирует эпизод фрода и применяет санкцию по эскалации (п. 6).
+    -- Методика: По числу активных санкций: первый эпизод - предупреждение, далее - понижение рейтинга; больше двух при подозрительных отзывах И падении выручки - блокировка следующего уровня (неделя, месяц, год). Уведомляет агента и компанию субагента.
 DECLARE
     v_cnt     bigint;
     v_blocks  bigint;
@@ -1043,6 +1083,8 @@ $$;
 -- Причина отмены и комментарий - параметры транзакции mp.cancel_reason_id и mp.status_comment.
 CREATE FUNCTION trg_deal_status_check()
 RETURNS trigger LANGUAGE plpgsql SET search_path = mp_service AS $$
+    -- Что делает: Триггер BEFORE на deal: допустимость перехода статуса и служебные поля (П-1).
+    -- Методика: Новая сделка - только INIT; переход ищется в DEAL_TRANSITION, исполнитель сверяется с mp.agent_id; закрытие гео-услуги - только из CONTACT; причина обязательна для отмен со штрафом; при AGREED - дата и секрет кода закрытия; финальный статус - дата закрытия.
 DECLARE
     v_from    text;
     v_to      text;
@@ -1105,6 +1147,8 @@ $$;
 -- История статусов и уведомления сторонам после смены статуса
 CREATE FUNCTION trg_deal_status_log()
 RETURNS trigger LANGUAGE plpgsql SET search_path = mp_service AS $$
+    -- Что делает: Триггер AFTER на deal: история статусов и уведомления сторонам.
+    -- Методика: Пишет deal_status_log с автором и причиной из параметров сессии; по новому статусу рассылает уведомления (запрос кандидатам, согласование, сближение, баллы, истечение, отмена).
 DECLARE
     v_code    text;
     v_agent   numeric := session_agent_id();
@@ -1160,6 +1204,8 @@ CREATE TRIGGER trg_deal_status_after AFTER INSERT OR UPDATE OF deal_status_id ON
 -- Отклик: повторная проверка условий подбора (П-2); первый отклик переводит сделку в OFFERS
 CREATE FUNCTION trg_deal_offer_check()
 RETURNS trigger LANGUAGE plpgsql SET search_path = mp_service AS $$
+    -- Что делает: Триггер BEFORE на deal_offer: повторная проверка условий подбора и цены отклика (П-2).
+    -- Методика: Вызывает provider_can_offer с точкой отклика; проверяет цену в пределах настроек поставщика (для км - не ниже порога); отклик получает статус active.
 DECLARE
     v_ok     boolean;
     v_reason text;
@@ -1187,6 +1233,8 @@ $$;
 
 CREATE FUNCTION trg_deal_offer_after()
 RETURNS trigger LANGUAGE plpgsql SET search_path = mp_service AS $$
+    -- Что делает: Триггер AFTER на deal_offer: первый отклик переводит сделку в OFFERS, клиенту уведомление.
+    -- Методика: Обновляет статус MATCHING -> OFFERS и создает уведомление NEW_OFFER.
 DECLARE
     v_client numeric;
 BEGIN
@@ -1207,6 +1255,8 @@ CREATE TRIGGER trg_deal_offer_after AFTER INSERT ON deal_offer
 -- Отзыв: только стороны сделки друг другу и только после закрытия или отмены
 CREATE FUNCTION trg_deal_review_check()
 RETURNS trigger LANGUAGE plpgsql SET search_path = mp_service AS $$
+    -- Что делает: Триггер BEFORE на deal_review: баллы только сторонами друг другу и только после закрытия или отмены.
+    -- Методика: Проверяет статус сделки и участников, роль оцениваемого проставляет сам.
 DECLARE
     d        deal%ROWTYPE;
     v_status text;
@@ -1235,6 +1285,8 @@ CREATE TRIGGER trg_deal_review BEFORE INSERT OR UPDATE ON deal_review
 -- Режим тестирования - только администратору
 CREATE FUNCTION trg_agent_testing_check()
 RETURNS trigger LANGUAGE plpgsql SET search_path = mp_service AS $$
+    -- Что делает: Триггер на agent: режим тестирования только для роли ADMIN.
+    -- Методика: При is_testing = 1 проверяет наличие активной роли ADMIN.
 BEGIN
     IF NEW.is_testing = 1 AND NOT EXISTS (
         SELECT 1 FROM agent_role ar
@@ -1251,6 +1303,8 @@ CREATE TRIGGER trg_agent_testing BEFORE INSERT OR UPDATE OF is_testing ON agent
 -- Положение курсором (manual) - только в режиме тестирования
 CREATE FUNCTION trg_agent_position_check()
 RETURNS trigger LANGUAGE plpgsql SET search_path = mp_service AS $$
+    -- Что делает: Триггер на agent_position: положение курсором только в режиме тестирования.
+    -- Методика: Для source = manual требует agent.is_testing = 1; ставит время обновления.
 BEGIN
     IF NEW.source = 'manual' AND NOT EXISTS (
         SELECT 1 FROM agent a WHERE a.agent_id = NEW.agent_id AND a.is_testing = 1) THEN
@@ -1267,6 +1321,8 @@ CREATE TRIGGER trg_agent_position BEFORE INSERT OR UPDATE ON agent_position
 -- Сервис субагенту назначает компания: только из ее пакета и не дольше ее подписки (В-12, Н-9)
 CREATE FUNCTION trg_agent_service_assign_check()
 RETURNS trigger LANGUAGE plpgsql SET search_path = mp_service AS $$
+    -- Что делает: Триггер на agent_service: сервис субагенту назначает только его компания, из своего пакета и не дольше своей подписки (В-12).
+    -- Методика: Проверяет связь субагент-компания и наличие сервиса в подписке компании; срок назначения обрезается окончанием подписки.
 DECLARE
     v_until timestamp;
 BEGIN
@@ -1419,6 +1475,8 @@ CREATE FUNCTION price_forecast(p_service_id numeric, p_lat numeric, p_lon numeri
                                OUT price_min numeric, OUT price_max numeric, OUT price_median numeric,
                                OUT providers bigint)
 LANGUAGE plpgsql STABLE SET search_path = mp_service AS $$
+    -- Что делает: Прогноз цены услуги в точке (П-5).
+    -- Методика: Нижняя граница - минимальная цена поставщиков рядом, верхняя - медиана их максимумов, медиана - по закрытым сделкам сервиса в ячейке forecast_grid_m за 90 дней (иначе середина диапазона).
 DECLARE
     v_grid numeric := coalesce(get_setting(p_service_id, 'forecast_grid_m')::numeric, 500);
 BEGIN
@@ -1450,6 +1508,8 @@ $$;
 CREATE FUNCTION auto_offer_price(p_client_price numeric, p_median numeric,
                                  p_min numeric, p_max numeric, p_round numeric)
 RETURNS numeric LANGUAGE sql IMMUTABLE AS $$
+    -- Что делает: Цена автоотклика (В-5).
+    -- Методика: Цена клиента, если она в диапазоне поставщика; иначе медиана прогноза, ограниченная диапазоном и округленная до шага.
     SELECT CASE
         WHEN p_client_price IS NOT NULL
              AND p_client_price >= coalesce(p_min, p_client_price)
@@ -1463,6 +1523,8 @@ $$;
 -- Маршрутные сервисы (такси) - на сервере: там проверяется маршрут и считается цена по тарифу.
 CREATE FUNCTION make_auto_offers(p_deal_id numeric)
 RETURNS int LANGUAGE plpgsql SET search_path = mp_service AS $$
+    -- Что делает: Создает автоотклики на сделку всех подходящих поставщиков с is_auto = 1 (п. 3.1).
+    -- Методика: Берет кандидатов из v_deal_candidates, цену считает auto_offer_price, точку - из публикации или настроек; маршрутные сервисы пропускает (их ведет сервер).
 DECLARE
     d       deal%ROWTYPE;
     r       record;
@@ -1503,6 +1565,8 @@ $$;
 -- Согласование отклика клиентом (п. 4.4) в одной транзакции
 CREATE FUNCTION deal_agree(p_deal_id numeric, p_offer_id numeric)
 RETURNS void LANGUAGE plpgsql SET search_path = mp_service AS $$
+    -- Что делает: Согласование отклика клиентом в одной транзакции (п. 4.4).
+    -- Методика: Блокирует сделку, проверяет клиента, активность отклика и занятость поставщика; выбранный отклик - selected, остальные - declined; сделке поставщик, цена и статус AGREED; при исчерпании лимита снимает другие отклики поставщика на это время и уведомляет их клиентов.
 DECLARE
     d     deal%ROWTYPE;
     o     deal_offer%ROWTYPE;
@@ -1558,6 +1622,8 @@ $$;
 -- Другая сторона опаздывает: период начался, а ее положение дальше near_radius_m от места встречи (В-3)
 CREATE FUNCTION deal_other_side_late(p_deal_id numeric, p_agent_id numeric)
 RETURNS boolean LANGUAGE sql STABLE SET search_path = mp_service AS $$
+    -- Что делает: Опаздывает ли другая сторона сделки (для бесплатной отмены, В-3).
+    -- Методика: Период начался, а свежее положение другой стороны дальше near_radius_m от места встречи (точка отклика для place_mode = provider, иначе точка клиента).
     SELECT coalesce((
         SELECT now() > d.period_start
            AND geo_distance_m(pos.geo_lat, pos.geo_lon,
@@ -1576,6 +1642,8 @@ $$;
 -- Отмена стороной сделки (п. 5.2-5.4); итоговый статус решает БД. Возвращает код статуса.
 CREATE FUNCTION deal_cancel(p_deal_id numeric, p_reason_id numeric DEFAULT NULL, p_comment text DEFAULT NULL)
 RETURNS text LANGUAGE plpgsql SET search_path = mp_service AS $$
+    -- Что делает: Отмена сделки стороной; итоговый статус решает БД (п. 5.2-5.4).
+    -- Методика: До согласования, в окне cancel_free_min до CONTACT или при опоздании другой стороны - CANCEL_FREE; иначе CANCEL_CLIENT / CANCEL_PROVIDER с обязательной причиной; активные отклики истекают; отмена после CONTACT - эпизод фрода NEAR_CANCEL.
 DECLARE
     d        deal%ROWTYPE;
     v_agent  numeric := session_agent_id();
@@ -1617,6 +1685,8 @@ $$;
 -- Плановые задания (п. 5.5, 4.6), вызывает сервер раз в минуту от имени системы
 CREATE FUNCTION run_deal_jobs()
 RETURNS jsonb LANGUAGE plpgsql SET search_path = mp_service AS $$
+    -- Что делает: Плановые задания по сделкам, вызывает сервер раз в минуту от имени системы (п. 4.6, 5.5).
+    -- Методика: Истечение открытых сделок к началу периода; CONTACT при сближении сторон; вопрос "Услуга оказана?" после периода; NOT_CLOSED через сутки с сигналом антифроду, если стороны встречались; закрытие прошедших публикаций. Возвращает счетчики.
 DECLARE
     r          record;
     v_expired  int := 0;
@@ -2003,6 +2073,58 @@ COMMENT ON VIEW v_deal_candidates             IS 'Поставщики, кото
 COMMENT ON VIEW v_provider_slot_map           IS 'Активные публикации поставщиков для карты клиента (точка смещена)';
 COMMENT ON VIEW v_ui_options                  IS 'Варианты интерфейса для выпадающего списка: "Шаблон A / Светлая"';
 COMMENT ON VIEW v_map_cursor                  IS 'Курсоры карты по роли и режиму тестирования (SVG)';
+
+-- Функции: описание (что делает и методика; то же - комментарием в теле функции)
+DO $$
+DECLARE
+    r record;
+BEGIN
+    FOR r IN
+        SELECT p.oid::regprocedure AS fn, v.descr
+        FROM (VALUES
+    ('check_dict_type', 'Триггер: проверяет, что значение общего справочника в колонке имеет ожидаемый dict_type (ОВ-22). Аргументы триггера - пары (колонка, тип); значение колонки берется из to_jsonb(NEW), тип ищется в dictionary; несовпадение - исключение.'),
+    ('dict_id', 'Возвращает id значения общего справочника по типу и коду. Прямой поиск по уникальной паре (dict_type, dict_code).'),
+    ('geo_distance_m', 'Расстояние между двумя точками по прямой, м. Формула гаверсинуса на сфере радиусом 6 371 км, округление до 0,1 м; при переходе на PostGIS - ST_Distance.'),
+    ('offer_sort_key', 'Ключ сортировки отклика по спецификации "поле:направление" (distance/rating/price, asc/desc). Берет значение нужного поля и умножает на -1 для desc, чтобы все ключи сортировать по возрастанию.'),
+    ('get_setting', 'Значение настройки сервиса для узла дерева с учетом наследования и рейтинга поставщика. Ищет строки настройки на узле и его предках, затем на платформе; ближайший узел побеждает, при переданном рейтинге сначала строки с подходящим диапазоном.'),
+    ('service_base_id', 'Узел уровня "сервис" для любого узла дерева (по нему ведутся рейтинг и отчеты). Поднимается по v_service_tree до ближайшего предка типа service или system.'),
+    ('is_load_mode', 'Признак загрузки тестовых данных (mp.load_mode = on). Читает параметр сессии; триггеры процесса в этом режиме не проверяют и не логируют.'),
+    ('session_agent_id', 'Агент, от имени которого действует текущая сессия API; NULL - система. Читает параметр сессии mp.agent_id, который задает сервер на каждый запрос.'),
+    ('agent_login_check', 'Проверка логина и пароля: возвращает id агента или NULL, фиксирует дату входа. Логин приводится к нижнему регистру; пароль сравнивается с хешем bcrypt через crypt() из pgcrypto; учитываются только активные вход и агент.'),
+    ('agent_pseudonym', 'Псевдоним агента (атрибут 16, виден всем). Последнее активное значение атрибута из истории agent_attribute.'),
+    ('agent_rating', 'Итоговый рейтинг агента в роли по сервису на дату; без истории - rating_start (В-4). Последняя запись rating_history по узлу уровня "сервис" не позже даты; если ее нет - настройка rating_start.'),
+    ('agent_has_rating', 'Есть ли у агента история рейтинга в роли по сервису (иначе пометка "новичок"). Проверка существования записи rating_history по узлу уровня "сервис".'),
+    ('service_covers', 'Подключенный узел поставщика покрывает узел сделки. Да, если узел поставщика - предок узла сделки по дереву, или узел сделки входит в настройку accepts_variants (классы авто).'),
+    ('period_in_work_time', 'Период сделки помещается в рабочее время; окно может переходить через полночь (П-6). Строит интервалы рабочего окна на день начала периода и на предыдущий день (для ночных окон) и проверяет вхождение tsrange.'),
+    ('agent_pending_reviews', 'Число сделок, по которым агент еще не выставил баллы (п. 5.6, В-11). Закрытые сделки - для обеих сторон, отмены со штрафом - для пострадавшей стороны; без записи deal_review от агента.'),
+    ('provider_limit', 'Сколько сделок поставщик может держать одновременно по сервису (п. 2.8). Емкость из agent_service, если задана, иначе настройка max_parallel_deals, иначе 1.'),
+    ('provider_busy', 'Сколько согласованных сделок поставщика того же сервиса пересекается с периодом. Считает сделки в AGREED/CONTACT с тем же узлом уровня "сервис" и пересечением tsrange, кроме исключаемой.'),
+    ('provider_can_offer', 'Может ли поставщик откликнуться на сделку: все условия п. 2.1-2.9 алгоритма; возвращает ok и код причины. Последовательно проверяет: статус сделки, не сам клиент, баллы, доступ к сервису (дерево, классы, подписка), блокировку, рейтинги, окно публикации или рабочее время, гео по place_mode, цену, лимит одновременных сделок; первая невыполненная проверка дает reason. Маршрут такси проверяет сервер.'),
+    ('notify_agent', 'Создает уведомление агенту в приложение. Вставка в notification с типом из справочника NOTIFY_TYPE, каналом in_app и временем отправки; пустой получатель пропускается.'),
+    ('register_fraud_episode', 'Регистрирует эпизод фрода и применяет санкцию по эскалации (п. 6). По числу активных санкций: первый эпизод - предупреждение, далее - понижение рейтинга; больше двух при подозрительных отзывах И падении выручки - блокировка следующего уровня (неделя, месяц, год). Уведомляет агента и компанию субагента.'),
+    ('trg_deal_status_check', 'Триггер BEFORE на deal: допустимость перехода статуса и служебные поля (П-1). Новая сделка - только INIT; переход ищется в DEAL_TRANSITION, исполнитель сверяется с mp.agent_id; закрытие гео-услуги - только из CONTACT; причина обязательна для отмен со штрафом; при AGREED - дата и секрет кода закрытия; финальный статус - дата закрытия.'),
+    ('trg_deal_status_log', 'Триггер AFTER на deal: история статусов и уведомления сторонам. Пишет deal_status_log с автором и причиной из параметров сессии; по новому статусу рассылает уведомления (запрос кандидатам, согласование, сближение, баллы, истечение, отмена).'),
+    ('trg_deal_offer_check', 'Триггер BEFORE на deal_offer: повторная проверка условий подбора и цены отклика (П-2). Вызывает provider_can_offer с точкой отклика; проверяет цену в пределах настроек поставщика (для км - не ниже порога); отклик получает статус active.'),
+    ('trg_deal_offer_after', 'Триггер AFTER на deal_offer: первый отклик переводит сделку в OFFERS, клиенту уведомление. Обновляет статус MATCHING -> OFFERS и создает уведомление NEW_OFFER.'),
+    ('trg_deal_review_check', 'Триггер BEFORE на deal_review: баллы только сторонами друг другу и только после закрытия или отмены. Проверяет статус сделки и участников, роль оцениваемого проставляет сам.'),
+    ('trg_agent_testing_check', 'Триггер на agent: режим тестирования только для роли ADMIN. При is_testing = 1 проверяет наличие активной роли ADMIN.'),
+    ('trg_agent_position_check', 'Триггер на agent_position: положение курсором только в режиме тестирования. Для source = manual требует agent.is_testing = 1; ставит время обновления.'),
+    ('trg_agent_service_assign_check', 'Триггер на agent_service: сервис субагенту назначает только его компания, из своего пакета и не дольше своей подписки (В-12). Проверяет связь субагент-компания и наличие сервиса в подписке компании; срок назначения обрезается окончанием подписки.'),
+    ('price_forecast', 'Прогноз цены услуги в точке (П-5). Нижняя граница - минимальная цена поставщиков рядом, верхняя - медиана их максимумов, медиана - по закрытым сделкам сервиса в ячейке forecast_grid_m за 90 дней (иначе середина диапазона).'),
+    ('auto_offer_price', 'Цена автоотклика (В-5). Цена клиента, если она в диапазоне поставщика; иначе медиана прогноза, ограниченная диапазоном и округленная до шага.'),
+    ('make_auto_offers', 'Создает автоотклики на сделку всех подходящих поставщиков с is_auto = 1 (п. 3.1). Берет кандидатов из v_deal_candidates, цену считает auto_offer_price, точку - из публикации или настроек; маршрутные сервисы пропускает (их ведет сервер).'),
+    ('deal_agree', 'Согласование отклика клиентом в одной транзакции (п. 4.4). Блокирует сделку, проверяет клиента, активность отклика и занятость поставщика; выбранный отклик - selected, остальные - declined; сделке поставщик, цена и статус AGREED; при исчерпании лимита снимает другие отклики поставщика на это время и уведомляет их клиентов.'),
+    ('deal_other_side_late', 'Опаздывает ли другая сторона сделки (для бесплатной отмены, В-3). Период начался, а свежее положение другой стороны дальше near_radius_m от места встречи (точка отклика для place_mode = provider, иначе точка клиента).'),
+    ('deal_cancel', 'Отмена сделки стороной; итоговый статус решает БД (п. 5.2-5.4). До согласования, в окне cancel_free_min до CONTACT или при опоздании другой стороны - CANCEL_FREE; иначе CANCEL_CLIENT / CANCEL_PROVIDER с обязательной причиной; активные отклики истекают; отмена после CONTACT - эпизод фрода NEAR_CANCEL.'),
+    ('run_deal_jobs', 'Плановые задания по сделкам, вызывает сервер раз в минуту от имени системы (п. 4.6, 5.5). Истечение открытых сделок к началу периода; CONTACT при сближении сторон; вопрос "Услуга оказана?" после периода; NOT_CLOSED через сутки с сигналом антифроду, если стороны встречались; закрытие прошедших публикаций. Возвращает счетчики.')
+        ) v(name, descr)
+        JOIN pg_proc p ON p.proname = v.name
+        JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'mp_service'
+    LOOP
+        EXECUTE format('COMMENT ON FUNCTION %s IS %L', r.fn, r.descr);
+    END LOOP;
+END
+$$;
 
 -- =====================================================================
 -- ТЕСТОВЫЕ ДАННЫЕ
