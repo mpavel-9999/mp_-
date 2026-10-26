@@ -103,6 +103,12 @@ fun offererNoteKey(deal: Deal?, offers: List<Offer>): String? = when {
 
 sealed interface DealEvent {
     data class Review(val dealId: Long) : DealEvent
+
+    /** Поставщик: экран кода закрытия. */
+    data class CloseCode(val dealId: Long) : DealEvent
+
+    /** Клиент: экран подтверждения кода. */
+    data class CloseConfirm(val dealId: Long) : DealEvent
 }
 
 /**
@@ -224,6 +230,20 @@ class DealViewModel(
     fun agree(offerId: Long) = act {
         deals.agree(dealId, offerId)
         load(quiet = true)
+    }
+
+    /**
+     * "Закрыть сделку" (п. 5.1): поставщику уходит уведомление CLOSE_REQUEST (если нажал клиент);
+     * клиент переходит к подтверждению, поставщик - к своему коду.
+     */
+    fun closeDeal() = act {
+        deals.closeRequest(dealId)
+        _events.tryEmit(if (_state.value.deal?.myRole == "provider") DealEvent.CloseCode(dealId) else DealEvent.CloseConfirm(dealId))
+    }
+
+    /** "Показать код" - поставщик открывает код без запроса клиента. */
+    fun showCode() {
+        _events.tryEmit(DealEvent.CloseCode(dealId))
     }
 
     fun openCancel(open: Boolean) = _state.update { it.copy(cancelOpen = open, actionError = null) }

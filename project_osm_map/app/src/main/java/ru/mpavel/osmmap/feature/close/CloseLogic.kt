@@ -1,5 +1,10 @@
 package ru.mpavel.osmmap.feature.close
 
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
+import com.google.zxing.common.BitMatrix
+import com.google.zxing.qrcode.QRCodeWriter
+
 // Закрытие сделки кодом (план Э6, ТЗ 6): что показать - решает сервер (Deal.actions), код считает только сервер.
 
 /** Кнопка закрытия: действие сервера и термин глоссария; порядок перечисления - порядок вывода. */
@@ -24,3 +29,7 @@ fun qrDealId(payload: String): Long? {
     if (parts.size != 3 || parts[0] != "mpclose" || parts[2].isEmpty() || !parts[2].all(Char::isDigit)) return null
     return parts[1].toLongOrNull()
 }
+
+/** Матрица QR-кода для строки (ZXing): true - тёмный модуль. Поле вокруг - 1 модуль, рисует экран. */
+fun qrMatrix(text: String, size: Int): BitMatrix =
+    QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size, mapOf(EncodeHintType.MARGIN to 1))

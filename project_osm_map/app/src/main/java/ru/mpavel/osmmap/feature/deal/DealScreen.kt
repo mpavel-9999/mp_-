@@ -52,6 +52,8 @@ import ru.mpavel.osmmap.data.CancelReason
 import ru.mpavel.osmmap.data.Deal
 import ru.mpavel.osmmap.data.FieldValue
 import ru.mpavel.osmmap.data.Offer
+import ru.mpavel.osmmap.feature.close.CloseButton
+import ru.mpavel.osmmap.feature.close.closeButtons
 import ru.mpavel.osmmap.feature.provider.OfferDialog
 import ru.mpavel.osmmap.ui.common.ErrorBox
 import ru.mpavel.osmmap.ui.common.LoadingBox
@@ -81,7 +83,15 @@ fun DealScreen(graph: AppGraph, nav: Nav, dealId: Long) {
     val vm: DealViewModel = viewModel(key = "deal:$dealId") { DealViewModel(graph.deals, graph.provider, graph.notifyCenter, graph.positions, dealId) }
     val state by vm.state.collectAsStateWithLifecycle()
     val config by graph.config.config.collectAsStateWithLifecycle()
-    LaunchedEffect(vm) { vm.events.collect { if (it is DealEvent.Review) nav.review(it.dealId) } }
+    LaunchedEffect(vm) {
+        vm.events.collect {
+            when (it) {
+                is DealEvent.Review -> nav.review(it.dealId)
+                is DealEvent.CloseCode -> nav.closeCode(it.dealId)
+                is DealEvent.CloseConfirm -> nav.closeConfirm(it.dealId)
+            }
+        }
+    }
     val actions = DealActions(vm, onReview = { nav.review(dealId) })
     val error = state.error
     val deal = state.deal
@@ -163,8 +173,10 @@ fun DealMap(
     val center = if (deal.lat != null && deal.lon != null) LatLon(deal.lat, deal.lon) else null
     val markers = buildList {
         if (center != null) {
-            add(MapMarker("client", center, t("ui.point"),
-                          svg = icons.cursors[if (deal.client?.isTesting == true) "CLIENT_TEST" else "CLIENT"]))
+            // на экране согласованной сделки курсоры - положения сторон, а точка встречи - булавкой
+            val pointSvg = if (state.tracksPosition) icons.icons["pin"]?.let { tintSvg(it, Mp.colors.zone.hex()) }
+                           else icons.cursors[if (deal.client?.isTesting == true) "CLIENT_TEST" else "CLIENT"]
+            add(MapMarker("client", center, t("ui.point"), svg = pointSvg))
         }
         if (deal.toLat != null && deal.toLon != null) {
             add(MapMarker("dest", LatLon(deal.toLat, deal.toLon), t("ui.destination"),
@@ -378,6 +390,17 @@ fun DealActionsRow(state: DealState, actions: DealActions) {
         offererNoteKey(state.deal, state.offers)?.let { key ->
             Text(t(key), color = if (key == "ui.waiting_client") Mp.colors.textMuted else Mp.colors.warning,
                  style = MaterialTheme.typography.bodyMedium)
+        }
+        // закрытие (п. 5.1): у поставщика "Закрыть сделку" и "Показать код" ведут к одному экрану - одна кнопка
+        val allClose = closeButtons(state.deal?.actions.orEmpty())
+        val close = if (CloseButton.CLOSE in allClose) listOf(CloseButton.CLOSE) else allClose.filter { it == CloseButton.SHOW_CODE }
+        for (b in close) {
+            Button(
+                onClick = { if (b == CloseButton.CLOSE) actions.vm.closeDeal() else actions.vm.showCode() },
+                enabled = !state.busy,
+                shape = Mp.shapes.button,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            ) { Text(t(b.textKey)) }
         }
         if (state.can("offer")) {
             val price = state.recommended?.let { " · ${it.toInt()} ${t("ui.currency")}" }.orEmpty()

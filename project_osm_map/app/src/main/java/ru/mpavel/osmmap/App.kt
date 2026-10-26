@@ -36,6 +36,8 @@ import ru.mpavel.osmmap.core.icons.LocalIcons
 import ru.mpavel.osmmap.core.net.ApiError
 import ru.mpavel.osmmap.core.net.AppError
 import ru.mpavel.osmmap.core.theme.MpTheme
+import ru.mpavel.osmmap.feature.close.CloseCodeScreen
+import ru.mpavel.osmmap.feature.close.CloseConfirmScreen
 import ru.mpavel.osmmap.feature.deal.DealScreen
 import ru.mpavel.osmmap.feature.deals.DealsScreen
 import ru.mpavel.osmmap.feature.home.HomeScreen
@@ -79,6 +81,14 @@ data class DealRoute(val dealId: Long)
 /** Обязательные баллы по сделке (п. 5.6). */
 @Serializable
 data class ReviewRoute(val dealId: Long)
+
+/** Код закрытия у поставщика: QR и цифры, обновляются по TTL (п. 5.1, ТЗ 6). */
+@Serializable
+data class CloseCodeRoute(val dealId: Long)
+
+/** Подтверждение закрытия клиентом; [code] - код из уведомления CLOSE_CODE (п. 5.1.3, 5.1.4). */
+@Serializable
+data class CloseConfirmRoute(val dealId: Long, val code: String = "")
 
 /** Раздел поставщика: мои сервисы, публикации, входящие запросы. */
 @Serializable
@@ -190,6 +200,8 @@ class Nav(private val nav: NavHostController) {
     }
 
     fun review(dealId: Long) = nav.navigate(ReviewRoute(dealId)) { launchSingleTop = true }
+    fun closeCode(dealId: Long) = nav.navigate(CloseCodeRoute(dealId)) { launchSingleTop = true }
+    fun closeConfirm(dealId: Long, code: String = "") = nav.navigate(CloseConfirmRoute(dealId, code)) { launchSingleTop = true }
     fun deals() = nav.navigate(DealsRoute) { launchSingleTop = true }
     fun provider() = nav.navigate(ProviderRoute) { launchSingleTop = true }
     fun incoming() = nav.navigate(IncomingRoute) { launchSingleTop = true }
@@ -218,17 +230,26 @@ private fun MainNav(graph: AppGraph, roles: List<String>, onLogout: () -> Unit) 
         destination?.hasRoute<RequestRoute>() == true -> t("ui.new_request")
         destination?.hasRoute<DealRoute>() == true -> t("ui.deal")
         destination?.hasRoute<ReviewRoute>() == true -> t("ui.review_title")
+        destination?.hasRoute<CloseCodeRoute>() == true || destination?.hasRoute<CloseConfirmRoute>() == true -> t("ui.close_deal")
         destination?.hasRoute<IncomingRoute>() == true -> t("ui.incoming")
         destination?.hasRoute<SlotRoute>() == true -> t("ui.publish")
         destination?.hasRoute<ServiceSettingsRoute>() == true -> t("ui.service_settings")
         else -> null
     }
 
-    // Новые уведомления - снекбаром; нажатие открывает сделку
+    // Новые уведомления - снекбаром; нажатие открывает сделку.
+    // Закрытие (п. 5.1.1, 5.6): клиент нажал "Закрыть сделку" - у поставщика сам открывается код;
+    // сделка закрыта или отменена со штрафом - сразу к обязательным баллам.
     val snackbar = remember { SnackbarHostState() }
     val texts by rememberUpdatedState(LocalTexts.current)
     LaunchedEffect(Unit) {
         graph.notifyCenter.events.collect { n ->
+            val dealId = n.dealId
+            when {
+                dealId == null -> Unit
+                n.type == "CLOSE_REQUEST" -> nav.closeCode(dealId)
+                n.type == "REVIEW_REQUIRED" -> nav.review(dealId)
+            }
             launch {
                 val result = snackbar.showSnackbar(
                     message = n.text ?: texts.notification(n.type),
@@ -274,6 +295,11 @@ private fun MainNav(graph: AppGraph, roles: List<String>, onLogout: () -> Unit) 
             }
             composable<DealRoute> { e -> DealScreen(graph, nav, e.toRoute<DealRoute>().dealId) }
             composable<ReviewRoute> { e -> ReviewScreen(graph, nav, e.toRoute<ReviewRoute>().dealId) }
+            composable<CloseCodeRoute> { e -> CloseCodeScreen(graph, e.toRoute<CloseCodeRoute>().dealId) }
+            composable<CloseConfirmRoute> { e ->
+                val r = e.toRoute<CloseConfirmRoute>()
+                CloseConfirmScreen(graph, nav, r.dealId, r.code)
+            }
             composable<ProviderRoute> { ProviderScreen(graph, nav) }
             composable<IncomingRoute> { IncomingScreen(graph, nav) }
             composable<SlotRoute> { e -> SlotScreen(graph, nav, e.toRoute<SlotRoute>().serviceId) }

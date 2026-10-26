@@ -1,5 +1,9 @@
 package ru.mpavel.osmmap
 
+import com.google.zxing.BinaryBitmap
+import com.google.zxing.RGBLuminanceSource
+import com.google.zxing.common.HybridBinarizer
+import com.google.zxing.qrcode.QRCodeReader
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -12,8 +16,9 @@ import ru.mpavel.osmmap.feature.close.CloseButton
 import ru.mpavel.osmmap.feature.close.closeButtons
 import ru.mpavel.osmmap.feature.close.codeSecondsLeft
 import ru.mpavel.osmmap.feature.close.qrDealId
+import ru.mpavel.osmmap.feature.close.qrMatrix
 
-/** Основа закрытия и положения (план Э6, шаг 3): ответы сервера, источник положения, кнопки, таймер кода. */
+/** Основа закрытия и положения (план Э6, шаги 3, 5): ответы сервера, источник положения, кнопки, таймер, QR. */
 class CloseFlowTest {
 
     @Test
@@ -73,5 +78,14 @@ class CloseFlowTest {
         assertNull(qrDealId("mpclose:x:123456"))
         assertNull(qrDealId("https://example.com/mpclose:1:2"))
         assertNull(qrDealId("mpclose:12:"))
+    }
+
+    @Test
+    fun qrImageReadsBack() {
+        // то, что рисует экран кода, читается сканером: строка возвращается без изменений
+        val m = qrMatrix("mpclose:8:048213", 256)
+        val pixels = IntArray(m.width * m.height) { i -> if (m.get(i % m.width, i / m.width)) 0xFF000000.toInt() else -1 }
+        val bitmap = BinaryBitmap(HybridBinarizer(RGBLuminanceSource(m.width, m.height, pixels)))
+        assertEquals("mpclose:8:048213", QRCodeReader().decode(bitmap).text)
     }
 }
