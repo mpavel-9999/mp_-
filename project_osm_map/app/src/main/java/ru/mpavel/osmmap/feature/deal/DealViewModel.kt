@@ -11,6 +11,9 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import ru.mpavel.osmmap.core.geo.distanceM
+import ru.mpavel.osmmap.core.location.Fix
+import ru.mpavel.osmmap.core.location.PositionSender
 import ru.mpavel.osmmap.core.net.ApiError
 import ru.mpavel.osmmap.core.net.AppError
 import ru.mpavel.osmmap.core.notify.NotificationCenter
@@ -21,6 +24,7 @@ import ru.mpavel.osmmap.data.Offer
 import ru.mpavel.osmmap.data.Position
 import ru.mpavel.osmmap.data.ProviderRepository
 import ru.mpavel.osmmap.data.RouteLink
+import ru.mpavel.osmmap.ui.map.LatLon
 
 /** Статусы до согласования - экран откликов; после - экран сделки (алгоритм, раздел 2). */
 val OPEN_STATUSES = setOf("INIT", "MATCHING", "OFFERS")
@@ -39,12 +43,51 @@ data class DealState(
     /** Кандидат: рекомендованная цена из GET /requests (для такси - по тарифу) и открыт ли диалог отклика. */
     val recommended: Double? = null,
     val offerOpen: Boolean = false,
+    /** Точка своего курсора (режим тестирования), пока сервер не вернул своё положение. */
+    val myCursor: LatLon? = null,
+    /** Разрешение на геолокацию (обычный режим): null - ещё не спрашивали, false - отказано. */
+    val gpsGranted: Boolean? = null,
 ) {
     val isOpen: Boolean get() = deal?.status in OPEN_STATUSES
 
     /** Онлайн-услуга (geo_mode = none) - без карты. */
     val hasMap: Boolean get() = deal?.lat != null && deal.geoMode != "none"
     fun can(action: String): Boolean = deal?.actions?.contains(action) == true
+
+    /** Агент в режиме тестирования (своя сторона сделки): положение - курсором, не GPS (ТЗ 5.4). */
+    val iAmTesting: Boolean
+        get() = (if (deal?.myRole == "provider") deal.provider?.isTesting else deal?.client?.isTesting) == true
+
+    /** Экран отправляет положение: сторона согласованной гео-сделки (онлайн-услуге сближение не нужно). */
+    val tracksPosition: Boolean
+        get() = deal != null && deal.status in AGREED_STATUSES && (deal.myRole == "client" || deal.myRole == "provider") &&
+            hasMap && deal.placeMode != "online"
+
+    /** Своё положение: в режиме тестирования - точка курсора на экране (сервер догонит), иначе - с сервера (GPS). */
+    val myPoint: LatLon?
+        get() = (if (iAmTesting) myCursor else null)
+            ?: positions.firstOrNull { it.role == deal?.myRole }?.let { LatLon(it.lat, it.lon) }
+
+    /** Расстояние до другой стороны, м; null - чьё-то положение неизвестно. */
+    val distanceToOther: Double?
+        get() {
+            val me = myPoint ?: return null
+            val other = positions.firstOrNull { it.role != deal?.myRole } ?: return null
+            return distanceM(me.lat, me.lon, other.lat, other.lon)
+        }
+}
+
+/**
+ * Где поставить свой курсор, пока своего положения нет (план Э6, шаг 4): клиенту - точка запроса, поставщику -
+ * точка выбранного отклика (после согласования она точная), иначе точка запроса. Сервер о ней не знает,
+ * пока агент не передвинет курсор - иначе сближение засчиталось бы само.
+ */
+fun ownStartPoint(deal: Deal?, offers: List<Offer>): LatLon? {
+    deal ?: return null
+    val dealPoint = if (deal.lat != null && deal.lon != null) LatLon(deal.lat, deal.lon) else null
+    if (deal.myRole != "provider") return dealPoint
+    val mine = offers.firstOrNull { it.offerStatus == "selected" } ?: offers.firstOrNull()
+    return if (mine?.showLat != null && mine.showLon != null) LatLon(mine.showLat, mine.showLon) else dealPoint
 }
 
 /**
@@ -72,8 +115,12 @@ class DealViewModel(
     private val deals: DealRepository,
     private val provider: ProviderRepository,
     private val center: NotificationCenter,
+    private val sender: PositionSender,
     private val dealId: Long,
 ) : ViewModel() {
+
+    /** Экран держит отправку положения (PositionSender.acquire) - только сторона согласованной гео-сделки. */
+    private var tracking = false
 
     private val _state = MutableStateFlow(DealState())
     val state: StateFlow<DealState> = _state
@@ -87,6 +134,10 @@ class DealViewModel(
         viewModelScope.launch {
             center.events.filter { it.dealId == dealId || _state.value.deal?.myRole == "offerer" }.collect { load(quiet = true) }
         }
+        // сближение засчитано сразу после отправки положения (PUT /me/position -> contact)
+        viewModelScope.launch {
+            sender.contact.filter { dealId in it }.collect { load(quiet = true) }
+        }
         viewModelScope.launch {
             while (isActive) {
                 delay(POSITIONS_MS)
@@ -98,7 +149,34 @@ class DealViewModel(
 
     override fun onCleared() {
         center.fast(false)
+        track(false)
     }
+
+    /** Включить или выключить отправку положения по статусу сделки (ТЗ 5.4: раз в 10 с на экране сделки). */
+    private fun track(on: Boolean) {
+        if (on == tracking) return
+        tracking = on
+        if (on) sender.acquire(_state.value.iAmTesting) else sender.release()
+        if (on && !_state.value.iAmTesting) _state.update { it.copy(gpsGranted = if (sender.hasPermission()) true else it.gpsGranted) }
+    }
+
+    /** Свой курсор отпущен или поставлен долгим нажатием (режим тестирования): положение - на сервер сразу. */
+    fun moveMyCursor(point: LatLon) {
+        if (!_state.value.iAmTesting) return
+        _state.update { it.copy(myCursor = point) }
+        viewModelScope.launch {
+            val result = sender.moveManual(Fix(point.lat, point.lon))
+            if (result == null || dealId !in result.contact) refreshPositions()
+        }
+    }
+
+    /** Ответ на запрос разрешения геолокации. */
+    fun gpsPermission(granted: Boolean) {
+        _state.update { it.copy(gpsGranted = granted) }
+        if (granted) sender.onPermissionGranted()
+    }
+
+    fun hasGpsPermission(): Boolean = sender.hasPermission()
 
     /** Сделка и отклики; после согласования - ссылки на маршрут и положения сторон. */
     fun load(quiet: Boolean = false) {
@@ -119,6 +197,8 @@ class DealViewModel(
                             recommended = recommended ?: it.recommended)
                 }
                 if (agreed && party) refreshPositions()
+                _state.update { it.copy(myCursor = it.myCursor ?: if (it.iAmTesting) ownStartPoint(deal, it.offers) else null) }
+                track(_state.value.tracksPosition)
             } catch (e: AppError) {
                 _state.update { it.copy(loading = false, error = if (it.deal == null) e else null, actionError = if (it.deal != null) e else null) }
             }
@@ -129,6 +209,12 @@ class DealViewModel(
         try {
             val positions = deals.positions(dealId)
             _state.update { it.copy(positions = positions) }
+            // после перезапуска приложения точка курсора есть только на сервере - продолжаем повторять её
+            val mine = positions.firstOrNull { it.role == _state.value.deal?.myRole && it.source == "manual" }
+            if (mine != null && sender.manual.value == null && _state.value.iAmTesting) {
+                _state.update { it.copy(myCursor = LatLon(mine.lat, mine.lon)) }
+                sender.moveManual(Fix(mine.lat, mine.lon))
+            }
         } catch (_: AppError) {
             // положения не обязательны для экрана
         }

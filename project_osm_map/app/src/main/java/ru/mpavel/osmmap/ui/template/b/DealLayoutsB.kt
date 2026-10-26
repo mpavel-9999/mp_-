@@ -50,7 +50,7 @@ fun OffersB(state: DealState, actions: DealActions) {
                             label = { Text(t("ui.map")) })
         }
         if (map) {
-            DealMap(state, Modifier.fillMaxWidth().weight(1f).clip(Mp.shapes.card))
+            DealMap(state, Modifier.fillMaxWidth().weight(1f).clip(Mp.shapes.card), onMoveMe = actions.vm::moveMyCursor)
         } else {
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 BCard { OffersList(state, actions) }
@@ -74,7 +74,7 @@ fun DealB(state: DealState, actions: DealActions) {
             StatusTimeline(deal)
         }
         BCard { PartyBlock(deal) }
-        if (state.hasMap) DealMap(state, Modifier.fillMaxWidth().height(220.dp).clip(Mp.shapes.card))
+        if (state.hasMap) DealMap(state, Modifier.fillMaxWidth().height(220.dp).clip(Mp.shapes.card), onMoveMe = actions.vm::moveMyCursor)
         RouteLinks(state)
         DealActionsRow(state, actions)
     }

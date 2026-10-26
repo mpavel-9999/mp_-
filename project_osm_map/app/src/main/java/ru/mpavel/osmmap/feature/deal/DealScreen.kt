@@ -1,5 +1,8 @@
 package ru.mpavel.osmmap.feature.deal
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -75,7 +78,7 @@ class DealActions(val vm: DealViewModel, val onReview: () -> Unit)
  */
 @Composable
 fun DealScreen(graph: AppGraph, nav: Nav, dealId: Long) {
-    val vm: DealViewModel = viewModel(key = "deal:$dealId") { DealViewModel(graph.deals, graph.provider, graph.notifyCenter, dealId) }
+    val vm: DealViewModel = viewModel(key = "deal:$dealId") { DealViewModel(graph.deals, graph.provider, graph.notifyCenter, graph.positions, dealId) }
     val state by vm.state.collectAsStateWithLifecycle()
     val config by graph.config.config.collectAsStateWithLifecycle()
     LaunchedEffect(vm) { vm.events.collect { if (it is DealEvent.Review) nav.review(it.dealId) } }
@@ -143,11 +146,20 @@ fun offerDistance(o: Offer): String {
     }
 }
 
-/** Карта сделки: точка и зона клиента, отклики (смещённые) или точное место, П -> Н, курсоры сторон. */
+/**
+ * Карта сделки: точка и зона клиента, отклики (смещённые) или точное место, П -> Н, курсоры сторон.
+ * В режиме тестирования свой курсор перетаскивается, долгое нажатие на карту ставит его в точку ([onMoveMe], В-Э6-2).
+ */
 @Composable
-fun DealMap(state: DealState, modifier: Modifier = Modifier, attributionAlignment: Alignment = Alignment.BottomEnd) {
+fun DealMap(
+    state: DealState,
+    modifier: Modifier = Modifier,
+    attributionAlignment: Alignment = Alignment.BottomEnd,
+    onMoveMe: (LatLon) -> Unit = {},
+) {
     val deal = state.deal ?: return
     val icons = LocalIcons.current
+    val dragMe = state.tracksPosition && state.iAmTesting
     val center = if (deal.lat != null && deal.lon != null) LatLon(deal.lat, deal.lon) else null
     val markers = buildList {
         if (center != null) {
@@ -165,8 +177,15 @@ fun DealMap(state: DealState, modifier: Modifier = Modifier, attributionAlignmen
                           svg = icons.cursors[if (o.isTesting) "PROVIDER_TEST" else "PROVIDER"]))
         }
         for (p in state.positions) {
+            if (dragMe && p.role == deal.myRole) continue
             // p.role - код роли (client / provider), подпись - из глоссария
             add(MapMarker("pos:${p.agentId}", LatLon(p.lat, p.lon), t("ui.role_${p.role}"), svg = icons.cursors[p.cursor]))
+        }
+        if (dragMe) {
+            state.myPoint?.let {
+                add(MapMarker("me", it, t("ui.my_position"), snippet = t("ui.testing_hint"),
+                              svg = icons.cursors[deal.myRole.uppercase() + "_TEST"], draggable = true))
+            }
         }
     }
     // масштаб по зоне: парковка 100 м - крупно, такси и доставка - шире
@@ -183,7 +202,48 @@ fun DealMap(state: DealState, modifier: Modifier = Modifier, attributionAlignmen
         zone = center?.takeIf { deal.zoneRadiusM != null && deal.placeMode == "provider" }?.let { MapZone(it, deal.zoneRadiusM!!) },
         markers = markers,
         attributionAlignment = attributionAlignment,
+        onMapLongPress = if (dragMe) onMoveMe else null,
+        onMarkerDragEnd = { id, point -> if (id == "me") onMoveMe(point) },
     )
+}
+
+/**
+ * Положение на экране согласованной гео-сделки (ТЗ 5.4): расстояние до другой стороны и радиус контакта;
+ * в режиме тестирования - подсказка про курсор, в обычном - запрос разрешения на геолокацию.
+ */
+@Composable
+fun PositionBlock(state: DealState, actions: DealActions) {
+    val deal = state.deal ?: return
+    if (!state.tracksPosition) return
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+        actions.vm.gpsPermission(result.values.any { it })
+    }
+    val muted = Mp.colors.textMuted
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        val distance = state.distanceToOther
+        Text(
+            if (distance != null) {
+                t("ui.distance_to_other", "m" to distance.toInt(), "r" to (deal.nearRadiusM ?: "–"))
+            } else {
+                t("ui.position_unknown")
+            },
+            style = MaterialTheme.typography.bodyMedium, fontFamily = Mp.fonts.mono,
+        )
+        when {
+            state.iAmTesting -> Text(t("ui.testing_hint"), style = MaterialTheme.typography.bodySmall, color = muted)
+            state.gpsGranted == false -> Text(t("ui.gps_denied"), style = MaterialTheme.typography.bodySmall, color = Mp.colors.warning)
+            state.gpsGranted != true && !actions.vm.hasGpsPermission() -> {
+                Text(t("ui.gps_needed"), style = MaterialTheme.typography.bodySmall, color = muted)
+                OutlinedButton(
+                    onClick = {
+                        launcher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                    },
+                    shape = Mp.shapes.button,
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) { Text(t("ui.my_position")) }
+            }
+        }
+    }
 }
 
 /** Заголовок: услуга, статус, период, цена. */
@@ -313,6 +373,7 @@ fun RouteLinks(state: DealState) {
 @Composable
 fun DealActionsRow(state: DealState, actions: DealActions) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        PositionBlock(state, actions)
         state.actionError?.let { Text(errorMessage(it), color = Mp.colors.danger) }
         offererNoteKey(state.deal, state.offers)?.let { key ->
             Text(t(key), color = if (key == "ui.waiting_client") Mp.colors.textMuted else Mp.colors.warning,

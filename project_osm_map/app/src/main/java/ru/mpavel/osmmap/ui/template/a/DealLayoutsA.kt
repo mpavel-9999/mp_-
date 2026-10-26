@@ -31,7 +31,7 @@ import ru.mpavel.osmmap.feature.deal.StatusTimeline
 /** Шаблон A, отклики: карта на весь экран (точки откликов смещены), список - шторкой снизу. */
 @Composable
 fun OffersA(state: DealState, actions: DealActions) {
-    MapWithSheet(state, sheetShare = 0.55f) {
+    MapWithSheet(state, actions, sheetShare = 0.55f) {
         state.deal?.let { DealHeader(it) }
         OffersList(state, actions)
         DealActionsRow(state, actions)
@@ -41,7 +41,7 @@ fun OffersA(state: DealState, actions: DealActions) {
 /** Шаблон A, сделка: карта с точным местом и курсорами, шторка с этапами, стороной и маршрутом. */
 @Composable
 fun DealA(state: DealState, actions: DealActions) {
-    MapWithSheet(state, sheetShare = 0.6f) {
+    MapWithSheet(state, actions, sheetShare = 0.6f) {
         val deal = state.deal ?: return@MapWithSheet
         DealHeader(deal)
         StatusTimeline(deal, horizontal = true)
@@ -52,14 +52,14 @@ fun DealA(state: DealState, actions: DealActions) {
 }
 
 @Composable
-private fun MapWithSheet(state: DealState, sheetShare: Float, content: @Composable () -> Unit) {
+private fun MapWithSheet(state: DealState, actions: DealActions, sheetShare: Float, content: @Composable () -> Unit) {
     val corner: Dp = Mp.template.shape.corner.dp
     // без гео (онлайн-услуга) - только шторка на весь экран
     val share = if (state.hasMap) sheetShare else 1f
     BoxWithConstraints(Modifier.fillMaxSize()) {
         // Карта - над шторкой (с заходом под скругление): центр сделки, зона и отклики остаются видны
         if (state.hasMap) {
-            DealMap(state, Modifier.fillMaxWidth().height(maxHeight * (1 - sheetShare) + corner), attributionAlignment = Alignment.TopEnd)
+            DealMap(state, Modifier.fillMaxWidth().height(maxHeight * (1 - sheetShare) + corner), attributionAlignment = Alignment.TopEnd, onMoveMe = actions.vm::moveMyCursor)
         }
         Surface(
             color = MaterialTheme.colorScheme.surface,

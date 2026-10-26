@@ -26,7 +26,7 @@ import ru.mpavel.osmmap.feature.deal.StatusTimeline
 /** Шаблон C, отклики: карта сверху, ниже таблица откликов (цифры моноширинным). */
 @Composable
 fun OffersC(state: DealState, actions: DealActions) {
-    DenseLayout(state) {
+    DenseLayout(state, actions) {
         OffersList(state, actions, dense = true)
         DealActionsRow(state, actions)
     }
@@ -36,7 +36,7 @@ fun OffersC(state: DealState, actions: DealActions) {
 @Composable
 fun DealC(state: DealState, actions: DealActions) {
     val deal = state.deal ?: return
-    DenseLayout(state) {
+    DenseLayout(state, actions) {
         StatusTimeline(deal, horizontal = true)
         HorizontalDivider(color = Mp.colors.border)
         PartyBlock(deal)
@@ -46,9 +46,9 @@ fun DealC(state: DealState, actions: DealActions) {
 }
 
 @Composable
-private fun DenseLayout(state: DealState, content: @Composable () -> Unit) {
+private fun DenseLayout(state: DealState, actions: DealActions, content: @Composable () -> Unit) {
     Column(Modifier.fillMaxSize()) {
-        if (state.hasMap) DealMap(state, Modifier.fillMaxWidth().height(240.dp))
+        if (state.hasMap) DealMap(state, Modifier.fillMaxWidth().height(240.dp), onMoveMe = actions.vm::moveMyCursor)
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
