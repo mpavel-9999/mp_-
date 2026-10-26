@@ -22,7 +22,7 @@ info:
       причины `provider_can_offer`: `NO_DEAL`, `DEAL_NOT_OPEN`, `OWN_DEAL`, `NO_SERVICE_ACCESS`, `BLOCKED`, `NO_SLOT`,
       `OUT_OF_CLIENT_ZONE`, `OUT_OF_PROVIDER_ZONE`, `WORK_TIME`, `CLIENT_RATING`, `PROVIDER_RATING`, `PRICE_RANGE`,
       `REVIEW_REQUIRED`), иначе `RULE`; дубль — `DUPLICATE`; а также `REVIEW_REQUIRED`, `NOT_ON_THE_WAY`, `DEAL_NOT_CLOSABLE`;
-    - 422 `CODE_INVALID`, `CODE_EXPIRED`, `NO_ROUTE`; период запроса или публикации — `PERIOD_IN_PAST`, `PERIOD_INVALID` (из `HINT` БД);
+    - 422 `CODE_INVALID`, `CODE_EXPIRED`, `NO_ROUTE`; закрытие гео-сделки до сближения — `CONTACT_REQUIRED` (из `HINT` БД); период запроса или публикации — `PERIOD_IN_PAST`, `PERIOD_INVALID` (из `HINT` БД);
     - 503 `ROUTING_UNAVAILABLE` — граф дорог не готов (остальные методы работают);
     - 500 `INTERNAL`, `DB_ERROR`.
 servers:
@@ -317,7 +317,10 @@ paths:
     put:
       tags: [Положение]
       summary: Текущее положение агента
-      description: '`source: manual` (курсор) разрешён только в режиме тестирования — иначе триггер БД отклоняет (409).'
+      description: |
+        `source: manual` (курсор) разрешён только в режиме тестирования — иначе триггер БД отклоняет (409).
+        Сразу после записи сервер проверяет сближение (`deal_contact_check`): согласованные гео-сделки агента, где обе
+        стороны ближе `near_radius_m`, переходят в CONTACT; их номера — в `contact` (Э6, В-Э6-1).
       requestBody:
         required: true
         content:
@@ -331,7 +334,18 @@ paths:
                 source: { type: string, enum: [gps, manual], default: gps }
                 accuracy_m: { type: number }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: Положение записано
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  contact:
+                    type: array
+                    description: Сделки, перешедшие в CONTACT после этого обновления
+                    items: { type: integer }
         '409': { $ref: '#/components/responses/Error' }
   /deals/{dealId}/positions:
     get:
@@ -689,7 +703,8 @@ paths:
       summary: Клиент подтверждает код → CLOSED
       description: |
         Принимается код или QR-строка `mpclose:<deal_id>:<code>`; действует текущий и предыдущий интервал.
-        Для `place_mode = offline` БД требует CONTACT (иначе 409).
+        Для гео-услуг (`place_mode` ≠ `online`) БД требует CONTACT, иначе 422 `CONTACT_REQUIRED`; ошибки кода — 422
+        `CODE_INVALID` / `CODE_EXPIRED`; сделка не AGREED / CONTACT — 409 `DEAL_NOT_CLOSABLE`.
       parameters:
         - $ref: '#/components/parameters/dealId'
       requestBody:
@@ -714,7 +729,7 @@ paths:
     post:
       tags: [Закрытие]
       summary: Тестовый клиент закрывает без сканирования
-      description: Только `is_testing` (иначе 403 `NOT_TESTING`).
+      description: Только `is_testing` (иначе 403 `NOT_TESTING`); для гео-услуги — из CONTACT (иначе 422 `CONTACT_REQUIRED`).
       parameters:
         - $ref: '#/components/parameters/dealId'
       responses:
@@ -725,6 +740,7 @@ paths:
               schema: { $ref: '#/components/schemas/Deal' }
         '403': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /deals/{dealId}/close/test-provide:
     post:
       tags: [Закрытие]
@@ -1158,4 +1174,4 @@ components:
         code: { type: string }
         qr_payload: { type: string, example: 'mpclose:7:482913' }
         ttl_s: { type: integer }
-        expires_in_s: { type: integer }
+        expires_in_s: { type: integer, description: 'Через сколько секунд код сменится (конец интервала)' }

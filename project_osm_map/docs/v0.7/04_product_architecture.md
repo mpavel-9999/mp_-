@@ -209,7 +209,7 @@ sequenceDiagram
     end
     loop каждые close_qr_ttl_s (10 с)
         P->>A: GET /close/code
-        A-->>P: QR + цифры, expires_at
+        A-->>P: QR + цифры, expires_in_s
     end
     C->>A: POST /close {code}
     A->>A: HMAC(close_secret, интервал) — текущий или предыдущий

@@ -210,7 +210,8 @@ public final class ApiServer {
     }
 
     /**
-     * Ошибка БД -> HTTP. Правила процесса (RAISE EXCEPTION) -> 409 с кодом из HINT, неверный период - 422;
+     * Ошибка БД -> HTTP. Правила процесса (RAISE EXCEPTION) -> 409 с кодом из HINT; неверный период и закрытие
+     * гео-сделки до сближения (CONTACT_REQUIRED) - 422;
      * дубль -> 409; неверные данные и ограничения -> 400.
      */
     private static Response fromDb(PSQLException e) {
@@ -219,7 +220,7 @@ public final class ApiServer {
         String text = msg != null && msg.getMessage() != null ? msg.getMessage() : e.getMessage();
         String hint = msg == null ? null : msg.getHint();
         return switch (state) {
-            case "P0001" -> hint != null && hint.startsWith("PERIOD_")
+            case "P0001" -> hint != null && (hint.startsWith("PERIOD_") || hint.equals("CONTACT_REQUIRED"))
                 ? Http.error(422, hint, text)
                 : Http.error(409, hint != null ? hint : "RULE", text);
             case "23505" -> Http.error(409, "DUPLICATE", text);

@@ -1439,7 +1439,8 @@ SELECT deal_id, service_id,
             ELSE '200+' END AS distance_band,
        concat_ws(' · ', pseudonym, '★ ' || rating, round(offer_price) || ' тг') AS marker_label
 FROM shown
-WHERE real_distance_m IS NULL OR real_distance_m <= zone_radius_m OR geo_mode = 'route';
+-- зона клиента ограничивает только точечные гео-услуги: у маршрутных - коридор, у онлайн (geo_mode = none) зоны нет (найдено в Э6)
+WHERE real_distance_m IS NULL OR real_distance_m <= zone_radius_m OR geo_mode IN ('route','none');
 
 -- Ссылки на маршрут во внешних картах - только для точной точки (после согласования)
 CREATE VIEW v_deal_offer_route AS

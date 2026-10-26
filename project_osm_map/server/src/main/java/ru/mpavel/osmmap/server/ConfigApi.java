@@ -240,15 +240,22 @@ final class ConfigApi {
             + " SELECT icon_id, icon_code, icon_svg FROM icon WHERE is_active = 1) i")));
     }
 
-    /** PUT /api/me/position {lat, lon, source, accuracy_m}; manual - только в режиме тестирования (триггер). */
+    /**
+     * PUT /api/me/position {lat, lon, source, accuracy_m}; manual - только в режиме тестирования (триггер).
+     * Сразу проверяет сближение сторон (В-Э6-1): в contact - сделки, перешедшие в CONTACT.
+     */
     Response position(Request r, Matcher m) throws SQLException {
         long me = r.agent();
-        db.tx(me, c -> Db.update(c,
-            "INSERT INTO agent_position (agent_id, geo_lat, geo_lon, source, accuracy_m)"
-            + " SELECT ?, (b->>'lat')::numeric, (b->>'lon')::numeric, coalesce(b->>'source', 'gps'),"
-            + "        (b->>'accuracy_m')::numeric FROM (SELECT ?::jsonb b) x"
-            + " ON CONFLICT (agent_id) DO UPDATE SET geo_lat = excluded.geo_lat, geo_lon = excluded.geo_lon,"
-            + "   source = excluded.source, accuracy_m = excluded.accuracy_m", me, r.body));
-        return Response.ok("{\"status\":\"ok\"}");
+        String contact = db.tx(me, c -> {
+            Db.update(c,
+                "INSERT INTO agent_position (agent_id, geo_lat, geo_lon, source, accuracy_m)"
+                + " SELECT ?, (b->>'lat')::numeric, (b->>'lon')::numeric, coalesce(b->>'source', 'gps'),"
+                + "        (b->>'accuracy_m')::numeric FROM (SELECT ?::jsonb b) x"
+                + " ON CONFLICT (agent_id) DO UPDATE SET geo_lat = excluded.geo_lat, geo_lon = excluded.geo_lon,"
+                + "   source = excluded.source, accuracy_m = excluded.accuracy_m", me, r.body);
+            // переход в CONTACT выполняет система: функция сама очищает и восстанавливает mp.agent_id
+            return Db.cell(c, "SELECT to_json(deal_contact_check(?))", me);
+        });
+        return Response.ok("{\"status\":\"ok\",\"contact\":" + contact + "}");
     }
 }

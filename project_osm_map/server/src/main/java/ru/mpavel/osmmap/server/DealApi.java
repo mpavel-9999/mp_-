@@ -436,6 +436,13 @@ final class DealApi {
                 throw new ApiException(403, "FORBIDDEN", "Код подтверждает только клиент сделки");
             }
             CodeParams p = codeParams(c, dealId);
+            // гео-услугу закрывают только из CONTACT: сообщить об этом раньше проверки кода (правило - в триггере БД)
+            if ("1".equals(Db.cell(c,
+                    "SELECT 1 FROM deal d JOIN dictionary st ON st.dict_id = d.deal_status_id"
+                    + " WHERE d.deal_id = ? AND st.dict_code = 'AGREED' AND get_setting(d.service_id, 'place_mode') <> 'online'",
+                    dealId))) {
+                throw new ApiException(422, "CONTACT_REQUIRED", "Закрыть сделку можно только после сближения сторон (CONTACT)");
+            }
             String code = Db.cell(c, "SELECT ?::jsonb ->> 'code'", r.body);
             if (code != null && code.startsWith("mpclose:")) {
                 String[] parts = code.split(":");

@@ -6,7 +6,7 @@
 
 Пароль в репозитории не хранится - только в переменной окружения.
 Сценарии меняют данные БД (создают сделки тестовых пользователей); перед приемкой БД можно перезагрузить.
-Ожидание сближения сторон - до 70 с: CONTACT ставит плановое задание сервера раз в минуту.
+Сближение сторон - сразу в ответе PUT /me/position (Э6); проверка устаревшего кода ждет до 35 с.
 """
 import json
 import os
@@ -183,15 +183,19 @@ def main():
     step('согласование: маршрут, имя открыто, номер скрыт', agree)
 
     def contact():
-        call('PUT', '/me/position', s[1], {'lat': P[0] + 0.0003, 'lon': P[1], 'source': 'manual'})
-        call('PUT', '/me/position', s[2], {'lat': P[0] + 0.0004, 'lon': P[1], 'source': 'manual'})
-        d = wait_status(s[1], s['deal'], 'CONTACT')
+        r = call('POST', f"/deals/{s['deal']}/close", s[1], {'code': '000000'}, expect=422)
+        check(r['code'] == 'CONTACT_REQUIRED', f"закрытие до сближения: {r['code']}")
+        moved = call('PUT', '/me/position', s[1], {'lat': P[0] + 0.0003, 'lon': P[1], 'source': 'manual'})['contact']
+        moved += call('PUT', '/me/position', s[2], {'lat': P[0] + 0.0004, 'lon': P[1], 'source': 'manual'})['contact']
+        check(s['deal'] in moved, f'CONTACT не в ответе положения: {moved}')
+        d = call('GET', f"/deals/{s['deal']}", s[1])
+        check(d['status'] == 'CONTACT', d['status'])
         names = [f['label'] for f in d['counterpart_fields']]
         check('Гос. номер авто' in names, 'гос. номер не открылся')
         pos = call('GET', f"/deals/{s['deal']}/positions", s[1])
         check({p['cursor'] for p in pos} == {'CLIENT_TEST', 'PROVIDER_TEST'}, 'курсоры')
-        return 'CONTACT, открыто: ' + ', '.join(names)
-    step('сближение курсорами -> CONTACT, открывается гос. номер', contact)
+        return 'до сближения - 422 CONTACT_REQUIRED; CONTACT сразу, открыто: ' + ', '.join(names)
+    step('сближение курсорами -> CONTACT сразу, открывается гос. номер', contact)
 
     def close():
         call('POST', f"/deals/{s['deal']}/close/request", s[1])
@@ -200,7 +204,13 @@ def main():
         code = call('GET', f"/deals/{s['deal']}/close/code", s[2])
         check(code['method'] == 'QR' and code['ttl_s'] == 10, f"способ {code['method']} {code['ttl_s']}")
         call('POST', f"/deals/{s['deal']}/close", s[1], {'code': '000000' if code['code'] != '000000' else '111111'}, expect=422)
+        # S-7: код старше двух интервалов отклоняется
+        time.sleep(code['expires_in_s'] + code['ttl_s'] + 1)
+        r = call('POST', f"/deals/{s['deal']}/close", s[1], {'code': code['qr_payload']}, expect=422)
+        check(r['code'] == 'CODE_EXPIRED', f"старый код: {r['code']}")
+        # код предыдущего интервала еще действует
         code = call('GET', f"/deals/{s['deal']}/close/code", s[2])
+        time.sleep(code['expires_in_s'] + 1)
         d = call('POST', f"/deals/{s['deal']}/close", s[1], {'code': code['qr_payload']})
         check(d['status'] == 'CLOSED' and 'review' in d['actions'], d['status'])
         call('POST', '/deals', s[1], {'service_id': 1001, 'lat': P[0], 'lon': P[1], 'period_start': ts(60),
@@ -208,8 +218,8 @@ def main():
         call('POST', f"/deals/{s['deal']}/review", s[1], {'score': 5, 'comment': 'Отлично'})
         call('POST', f"/deals/{s['deal']}/review", s[2], {'score': 5})
         check(call('GET', '/me', s[1])['pending_reviews'] == 0, 'баллы не учтены')
-        return 'QR 10 с, неверный код - 422, без баллов новый запрос - 409'
-    step('закрытие по QR, обязательные баллы', close)
+        return 'QR 10 с, неверный код - 422, код старше двух интервалов - CODE_EXPIRED, прошлый интервал принят, без баллов новый запрос - 409'
+    step('закрытие по QR (S-7), обязательные баллы', close)
 
     # --- тестовый режим: "Предоставить QR" с автоподтверждением + бесплатная отмена
     def test_mode():
@@ -218,7 +228,8 @@ def main():
         call('POST', f"/deals/{d['deal_id']}/offers", s[2], {'price': 800})
         offer_id = call('GET', f"/deals/{d['deal_id']}/offers", s[1])[0]['deal_offer_id']
         call('POST', f"/deals/{d['deal_id']}/offers/{offer_id}/agree", s[1])
-        wait_status(s[1], d['deal_id'], 'CONTACT')
+        moved = call('PUT', '/me/position', s[2], {'lat': P[0] + 0.0004, 'lon': P[1], 'source': 'manual'})['contact']
+        check(d['deal_id'] in moved, f'CONTACT не в ответе положения: {moved}')
         provided = call('POST', f"/deals/{d['deal_id']}/close/test-provide", s[2])
         note = [n for n in call('GET', '/notifications', s[1]) if n['type'] == 'CLOSE_CODE' and n['deal_id'] == d['deal_id']]
         check(note and note[-1]['payload']['code'] == provided['code'], 'код не пришел клиенту')
@@ -235,6 +246,26 @@ def main():
         check(res['status'] == 'CANCEL_FREE', res['status'])
         return 'код через уведомление CLOSE_CODE, закрыто; отмена в окне - CANCEL_FREE'
     step('режим тестирования: "Предоставить QR", бесплатная отмена', test_mode)
+
+    # --- онлайн-услуга: ключ KEY, закрытие из AGREED без сближения (п. 5.1.2, 4.4)
+    def online():
+        form = call('GET', '/services/1801/form?scope=request', s[1])
+        attrs = [{'attribute_id': f['attribute_id'], 'value': str((f.get('options') or [{'value': 'Test'}])[0].get('value'))}
+                 for f in form if f.get('required')]
+        d = call('POST', '/deals', s[1], {'service_id': 1801, 'lat': P[0], 'lon': P[1], 'period_start': ts(240),
+                                          'period_end': ts(300), 'client_price': 3000, 'attributes': attrs})
+        call('POST', f"/deals/{d['deal_id']}/offers", s[2], {'price': 3000})
+        oid = call('GET', f"/deals/{d['deal_id']}/offers", s[1])[0]['deal_offer_id']
+        d = call('POST', f"/deals/{d['deal_id']}/offers/{oid}/agree", s[1])
+        check(d['status'] == 'AGREED' and 'enter_code' in d['actions'], f"{d['status']} {d['actions']}")
+        code = call('GET', f"/deals/{d['deal_id']}/close/code", s[2])
+        check(code['method'] == 'KEY' and code['ttl_s'] == 60 and len(code['code']) == 6, f"{code['method']} {code['ttl_s']}")
+        closed = call('POST', f"/deals/{d['deal_id']}/close", s[1], {'code': code['code']})
+        check(closed['status'] == 'CLOSED', closed['status'])
+        call('POST', f"/deals/{d['deal_id']}/review", s[1], {'score': 5})
+        call('POST', f"/deals/{d['deal_id']}/review", s[2], {'score': 5})
+        return 'KEY 6 цифр / 60 с, закрыто из AGREED'
+    step('онлайн-услуга: закрытие ключом без сближения', online)
 
     # --- такси по пути (В-8)
     def taxi():

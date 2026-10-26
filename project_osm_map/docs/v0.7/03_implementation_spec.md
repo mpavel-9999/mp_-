@@ -153,7 +153,7 @@
 
 | Метод | Путь | Назначение |
 | --- | --- | --- |
-| PUT | `/me/position` | `{"lat", "lon", "source": "gps"\|"manual", "accuracy_m"}`; `manual` — только в режиме тестирования (иначе `403`) |
+| PUT | `/me/position` | `{"lat", "lon", "source": "gps"\|"manual", "accuracy_m"}`; `manual` — только в режиме тестирования (иначе отказ триггера, 409); ответ `{status, contact: [deal_id…]}` — сделки, перешедшие в CONTACT сразу (Э6, В-Э6-1) |
 | GET | `/deals/{id}/positions` | Положения сторон согласованной сделки, курсоры (роль × тестовый режим) |
 
 ### 4.4 Клиент
@@ -184,7 +184,7 @@
 | Метод | Путь | Назначение |
 | --- | --- | --- |
 | POST | `/deals/{id}/close/request` | Сторона нажала «Закрыть сделку»; поставщику уведомление `CLOSE_REQUEST` |
-| GET | `/deals/{id}/close/code` | Только поставщик: `{method, code, qr_payload, ttl_s, expires_at}` |
+| GET | `/deals/{id}/close/code` | Только поставщик: `{method, code, qr_payload, ttl_s, expires_in_s}` (уточнено в Э6: секунды до смены кода вместо момента) |
 | POST | `/deals/{id}/close` | Только клиент: `{"code": "123456"}` → CLOSED; `422 CODE_EXPIRED` / `CODE_INVALID` / `CONTACT_REQUIRED` |
 | POST | `/deals/{id}/close/test-scan` | Только `is_testing`: сервер сам подставляет действующий код |
 | POST | `/deals/{id}/close/test-provide` | Только `is_testing` поставщика: второй стороне уведомление `CLOSE_CODE`, приложение клиента подтверждает автоматически |
@@ -287,7 +287,7 @@ qr_payload = "mpclose:" || deal_id || ":" || code
 ```
 
 - `close_secret` — 32 случайных байта, создаётся при AGREED, клиенту не отдаётся никогда.
-- Поставщик получает код через `GET /close/code` и обновляет его по `expires_at`.
+- Поставщик получает код через `GET /close/code` и обновляет его по `expires_in_s`.
 - Клиент сканирует `qr_payload` или вводит цифры.
 - Проверки сервера: клиент сделки; статус CONTACT (гео-услуги) или AGREED (`place_mode = online`); код действующий. После CLOSED — уведомление `REVIEW_REQUIRED` обеим сторонам.
 - Тестовый режим: `test-scan` подставляет действующий код; `test-provide` отправляет клиенту уведомление `CLOSE_CODE`, приложение клиента сразу вызывает `POST /close` с кодом из уведомления (только если клиент тоже в тестовом режиме; иначе клиент вводит код вручную).
