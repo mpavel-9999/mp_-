@@ -3390,6 +3390,42 @@ SELECT 6 + n, cfg, md5(cfg::text)
 FROM generate_series(1, 5) n
 CROSS JOIN LATERAL (SELECT jsonb_build_object('lang','RUS','template','A','scheme','A_LIGHT','map','OSM','version',7) AS cfg) c;
 
+-- Обычные клиенты user_1..5 (агенты 12-16, решение владельца 26.10.2026, Э6): только роль CLIENT, без режима
+-- тестирования - положение по GPS, закрытие камерой или вводом цифр, код из "Предоставить QR" - на экране подтверждения.
+-- Пароль общий, задан владельцем; в репозитории - только хеш bcrypt.
+INSERT INTO agent (agent_id, interface_lang_id, date_creation, date_start)
+SELECT 11 + n, 1, now(), now() FROM generate_series(1, 5) n;
+
+INSERT INTO agent_role (agent_id, role_id)
+SELECT 11 + n, 1 FROM generate_series(1, 5) n;
+
+INSERT INTO agent_login (login, agent_id, password_hash)
+SELECT 'user_' || n, 11 + n, '$2a$10$YerLMNz7WuI84TLw1qiT7uPafrhrzWZxNiZlHesAZR9Zm0UBloxqm' FROM generate_series(1, 5) n;
+
+INSERT INTO agent_attribute (agent_id, attribute_id, attribute_value, date_start)
+SELECT 11 + n, a.attribute_id,
+       CASE a.attribute_id
+           WHEN 1  THEN 'Клиентов'
+           WHEN 2  THEN 'Клиент ' || n
+           WHEN 4  THEN '+7701000000' || n
+           WHEN 5  THEN '1992-02-0' || n
+           WHEN 16 THEN 'Клиент_' || n
+           WHEN 14 THEN n || '00USR02'
+           WHEN 21 THEN 'Авто клиента ' || n
+       END,
+       now()
+FROM generate_series(1, 5) n
+CROSS JOIN (VALUES (1), (2), (4), (5), (16), (14), (21)) a(attribute_id);
+
+-- Пакет "Клиент" (бесплатный), как у агента 1
+INSERT INTO agent_subscription (subscription_id, agent_id, package_id, is_trial, date_start, date_end)
+SELECT 18 + n, 11 + n, 1, 0, now() - interval '1 day', '2099-12-31' FROM generate_series(1, 5) n;
+
+INSERT INTO ui_config (agent_id, config_json, checksum)
+SELECT 11 + n, cfg, md5(cfg::text)
+FROM generate_series(1, 5) n
+CROSS JOIN LATERAL (SELECT jsonb_build_object('lang','RUS','template','A','scheme','A_LIGHT','map','OSM','version',7) AS cfg) c;
+
 -- ---------------------------------------------------------------------
 -- Завершение загрузки: триггеры процесса снова проверяют и логируют; номера фактов - после тестовых
 -- ---------------------------------------------------------------------
