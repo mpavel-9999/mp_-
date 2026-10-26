@@ -66,6 +66,7 @@ data class ProviderState(
 class ProviderViewModel(
     private val session: SessionRepository,
     private val provider: ProviderRepository,
+    private val skipped: SkippedRequests,
     center: NotificationCenter,
     lang: Flow<String?>,
 ) : ViewModel() {
@@ -85,7 +86,8 @@ class ProviderViewModel(
             if (!quiet) _state.update { it.copy(loading = true, error = null) }
             try {
                 val me = session.me()
-                val incoming = provider.requests()
+                // счётчик - как в списке входящих: без пропущенных
+                val incoming = visibleRequests(provider.requests(), skipped.ids.value)
                 val slots = provider.mySlots()
                 _state.update {
                     it.copy(loading = false, error = null, services = me.services, incoming = incoming.size, slots = slots)
@@ -117,7 +119,7 @@ class ProviderViewModel(
 @Composable
 fun ProviderScreen(graph: AppGraph, nav: Nav) {
     val vm: ProviderViewModel = viewModel {
-        ProviderViewModel(graph.session, graph.provider, graph.notifyCenter, graph.config.lang)
+        ProviderViewModel(graph.session, graph.provider, graph.skipped, graph.notifyCenter, graph.config.lang)
     }
     val state by vm.state.collectAsStateWithLifecycle()
     // возврат с публикации или настроек - свежие данные
