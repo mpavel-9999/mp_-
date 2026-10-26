@@ -47,6 +47,8 @@ data class DealState(
     val myCursor: LatLon? = null,
     /** Разрешение на геолокацию (обычный режим): null - ещё не спрашивали, false - отказано. */
     val gpsGranted: Boolean? = null,
+    /** "Предоставить QR": код ушёл клиенту уведомлением CLOSE_CODE. */
+    val codeSent: Boolean = false,
 ) {
     val isOpen: Boolean get() = deal?.status in OPEN_STATUSES
 
@@ -239,6 +241,18 @@ class DealViewModel(
     fun closeDeal() = act {
         deals.closeRequest(dealId)
         _events.tryEmit(if (_state.value.deal?.myRole == "provider") DealEvent.CloseCode(dealId) else DealEvent.CloseConfirm(dealId))
+    }
+
+    /** "Сканировать QR" (режим тестирования, п. 5.1.4): действующий код подставляет сервер; затем баллы. */
+    fun testScan() = act {
+        deals.testScan(dealId)
+        _events.tryEmit(DealEvent.Review(dealId))
+    }
+
+    /** "Предоставить QR": тестовый клиент подтвердит код сам, обычный - на экране подтверждения. */
+    fun testProvide() = act {
+        deals.testProvide(dealId)
+        _state.update { it.copy(codeSent = true) }
     }
 
     /** "Показать код" - поставщик открывает код без запроса клиента. */

@@ -38,6 +38,8 @@ import ru.mpavel.osmmap.core.net.AppError
 import ru.mpavel.osmmap.core.theme.MpTheme
 import ru.mpavel.osmmap.feature.close.CloseCodeScreen
 import ru.mpavel.osmmap.feature.close.CloseConfirmScreen
+import ru.mpavel.osmmap.feature.close.autoConfirm
+import ru.mpavel.osmmap.feature.close.closeCodeFrom
 import ru.mpavel.osmmap.feature.deal.DealScreen
 import ru.mpavel.osmmap.feature.deals.DealsScreen
 import ru.mpavel.osmmap.feature.home.HomeScreen
@@ -249,6 +251,15 @@ private fun MainNav(graph: AppGraph, roles: List<String>, onLogout: () -> Unit) 
                 dealId == null -> Unit
                 n.type == "CLOSE_REQUEST" -> nav.closeCode(dealId)
                 n.type == "REVIEW_REQUIRED" -> nav.review(dealId)
+                // "Предоставить QR" (п. 5.1.4): тестовый клиент подтверждает код сам, обычный - на экране с подставленным кодом
+                n.type == "CLOSE_CODE" -> closeCodeFrom(n)?.let { code ->
+                    launch {
+                        val deal = runCatching { graph.deals.get(dealId) }.getOrNull()
+                        val closed = deal != null && autoConfirm(deal) && runCatching { graph.deals.close(dealId, code) }.isSuccess
+                        // закрыто - к баллам ведёт REVIEW_REQUIRED; не вышло - экран подтверждения покажет ошибку
+                        if (!closed && deal?.myRole == "client") nav.closeConfirm(dealId, code)
+                    }
+                }
             }
             launch {
                 val result = snackbar.showSnackbar(

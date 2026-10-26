@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,7 +27,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -41,14 +44,30 @@ import ru.mpavel.osmmap.core.time.formatPeriod
 import ru.mpavel.osmmap.core.time.parseServerTime
 import ru.mpavel.osmmap.data.DealListItem
 import ru.mpavel.osmmap.data.DealRepository
+import ru.mpavel.osmmap.feature.close.CloseButton
+import ru.mpavel.osmmap.feature.close.closeButtons
+import ru.mpavel.osmmap.feature.deal.AGREED_STATUSES
 import ru.mpavel.osmmap.feature.deal.StatusChip
 import ru.mpavel.osmmap.ui.common.ErrorBox
 import ru.mpavel.osmmap.ui.common.LoadingBox
+import ru.mpavel.osmmap.ui.common.errorMessage
 
 /** Мои сделки: активные и ждущие баллов (GET /deals?role=all&status=active). */
 sealed interface DealsState {
     data object Loading : DealsState
-    data class Loaded(val deals: List<DealListItem>) : DealsState
+
+    /**
+     * [testActions] - действия закрытия в режиме тестирования по согласованным сделкам (test_scan / test_provide):
+     * агент выбирает, какую сделку закрыть, прямо из списка (п. 5.1.4). [sent] - кому код уже предоставлен.
+     */
+    data class Loaded(
+        val deals: List<DealListItem>,
+        val testActions: Map<Long, List<CloseButton>> = emptyMap(),
+        val busy: Boolean = false,
+        val sent: Set<Long> = emptySet(),
+        val actionError: AppError? = null,
+    ) : DealsState
+
     data class Failed(val error: AppError) : DealsState
 }
 
@@ -56,6 +75,10 @@ class DealsViewModel(private val deals: DealRepository, center: NotificationCent
 
     private val _state = MutableStateFlow<DealsState>(DealsState.Loading)
     val state: StateFlow<DealsState> = _state
+    private val _review = MutableSharedFlow<Long>(extraBufferCapacity = 1)
+
+    /** Сделка закрыта "Сканировать QR" - к баллам. */
+    val review: SharedFlow<Long> = _review
 
     init {
         viewModelScope.launch { lang.distinctUntilChanged().collect { load() } }
@@ -67,9 +90,39 @@ class DealsViewModel(private val deals: DealRepository, center: NotificationCent
         viewModelScope.launch {
             if (!quiet) _state.value = DealsState.Loading
             _state.value = try {
-                DealsState.Loaded(deals.list("all", "active"))
+                val list = deals.list("all", "active")
+                val old = _state.value as? DealsState.Loaded
+                DealsState.Loaded(list, testActionsOf(list), sent = old?.sent.orEmpty())
             } catch (e: AppError) {
                 if (quiet && _state.value is DealsState.Loaded) _state.value else DealsState.Failed(e)
+            }
+        }
+    }
+
+    /** Действия есть только в карточке сделки: читаем её для согласованных (их у агента единицы). */
+    private suspend fun testActionsOf(list: List<DealListItem>): Map<Long, List<CloseButton>> =
+        list.filter { it.status in AGREED_STATUSES }.mapNotNull { d ->
+            val buttons = runCatching { deals.get(d.dealId).actions }.getOrDefault(emptyList())
+                .let(::closeButtons).filter { it == CloseButton.TEST_SCAN || it == CloseButton.TEST_PROVIDE }
+            if (buttons.isEmpty()) null else d.dealId to buttons
+        }.toMap()
+
+    /** "Сканировать QR" (клиент) или "Предоставить QR" (поставщик) по выбранной сделке. */
+    fun testClose(dealId: Long, button: CloseButton) {
+        val loaded = _state.value as? DealsState.Loaded ?: return
+        viewModelScope.launch {
+            _state.value = loaded.copy(busy = true, actionError = null)
+            try {
+                if (button == CloseButton.TEST_SCAN) {
+                    deals.testScan(dealId)
+                    _review.tryEmit(dealId)
+                } else {
+                    deals.testProvide(dealId)
+                    _state.value = loaded.copy(sent = loaded.sent + dealId)
+                }
+                load(quiet = true)
+            } catch (e: AppError) {
+                _state.value = loaded.copy(actionError = e)
             }
         }
     }
@@ -80,6 +133,7 @@ fun DealsScreen(graph: AppGraph, nav: Nav) {
     val vm: DealsViewModel = viewModel { DealsViewModel(graph.deals, graph.notifyCenter, graph.config.lang) }
     val state by vm.state.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { vm.load(quiet = true) }
+    LaunchedEffect(vm) { vm.review.collect { nav.review(it) } }
     when (val s = state) {
         DealsState.Loading -> LoadingBox()
         is DealsState.Failed -> ErrorBox(s.error, onRetry = { vm.load() })
@@ -87,8 +141,24 @@ fun DealsScreen(graph: AppGraph, nav: Nav) {
             Text(t("ui.no_deals"), color = Mp.colors.textMuted, modifier = Modifier.padding(16.dp))
         } else {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
+                s.actionError?.let { e ->
+                    item { Text(errorMessage(e), color = Mp.colors.danger, modifier = Modifier.padding(horizontal = 16.dp)) }
+                }
                 items(s.deals, key = { it.dealId }) { d ->
                     DealRow(d, onClick = { if (d.reviewPending) nav.review(d.dealId) else nav.deal(d.dealId) })
+                    s.testActions[d.dealId]?.let { buttons ->
+                        Row(Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            for (b in buttons) {
+                                if (b == CloseButton.TEST_PROVIDE && d.dealId in s.sent) {
+                                    Text(t("ui.code_sent"), color = Mp.colors.success, style = MaterialTheme.typography.bodySmall)
+                                } else {
+                                    OutlinedButton(onClick = { vm.testClose(d.dealId, b) }, enabled = !s.busy, shape = Mp.shapes.button,
+                                                   modifier = Modifier.heightIn(min = 48.dp)) { Text(t(b.textKey)) }
+                                }
+                            }
+                        }
+                    }
                     HorizontalDivider(color = Mp.colors.border)
                 }
             }

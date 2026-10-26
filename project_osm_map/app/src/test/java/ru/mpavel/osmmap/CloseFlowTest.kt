@@ -5,14 +5,21 @@ import com.google.zxing.RGBLuminanceSource
 import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.qrcode.QRCodeReader
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import ru.mpavel.osmmap.core.location.Fix
 import ru.mpavel.osmmap.core.location.positionUpdate
 import ru.mpavel.osmmap.core.net.decodeBody
 import ru.mpavel.osmmap.data.CloseCode
+import ru.mpavel.osmmap.data.Deal
+import ru.mpavel.osmmap.data.Notification
+import ru.mpavel.osmmap.data.Party
 import ru.mpavel.osmmap.data.PositionResult
 import ru.mpavel.osmmap.feature.close.CloseButton
+import ru.mpavel.osmmap.feature.close.autoConfirm
+import ru.mpavel.osmmap.feature.close.closeCodeFrom
 import ru.mpavel.osmmap.feature.close.closeButtons
 import ru.mpavel.osmmap.feature.close.codeSecondsLeft
 import ru.mpavel.osmmap.feature.close.qrDealId
@@ -87,5 +94,28 @@ class CloseFlowTest {
         val pixels = IntArray(m.width * m.height) { i -> if (m.get(i % m.width, i / m.width)) 0xFF000000.toInt() else -1 }
         val bitmap = BinaryBitmap(HybridBinarizer(RGBLuminanceSource(m.width, m.height, pixels)))
         assertEquals("mpclose:8:048213", QRCodeReader().decode(bitmap).text)
+    }
+
+    @Test
+    fun closeCodeNotification() {
+        // уведомление CLOSE_CODE ("Предоставить QR"): payload - ответ close/code
+        val n = decodeBody<Notification>("/notifications",
+            """{"notification_id":41,"deal_id":8,"type":"CLOSE_CODE","text":"Код закрытия получен",
+               "payload":{"method":"QR","code":"048213","qr_payload":"mpclose:8:048213","ttl_s":10,"expires_in_s":6}}""")
+        assertEquals("048213", closeCodeFrom(n))
+        assertNull(closeCodeFrom(n.copy(type = "CLOSE_REQUEST")))
+        assertNull(closeCodeFrom(n.copy(payload = null)))
+    }
+
+    @Test
+    fun autoConfirmOnlyTestingClient() {
+        fun deal(role: String, testing: Boolean, actions: List<String>) =
+            Deal(dealId = 8, serviceId = 1001, status = "CONTACT", myRole = role, client = Party(isTesting = testing), actions = actions)
+        assertTrue(autoConfirm(deal("client", testing = true, actions = listOf("close", "enter_code", "test_scan"))))
+        // обычный клиент - экран подтверждения с подставленным кодом
+        assertFalse(autoConfirm(deal("client", testing = false, actions = listOf("close", "enter_code"))))
+        // ввод кода сервер не разрешает (гео-услуга до сближения)
+        assertFalse(autoConfirm(deal("client", testing = true, actions = listOf("close"))))
+        assertFalse(autoConfirm(deal("provider", testing = true, actions = listOf("close", "show_code"))))
     }
 }

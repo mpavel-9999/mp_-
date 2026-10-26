@@ -402,6 +402,19 @@ fun DealActionsRow(state: DealState, actions: DealActions) {
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
             ) { Text(t(b.textKey)) }
         }
+        // режим тестирования (п. 5.1.4): закрыть без камеры прямо со сделки
+        for (b in allClose.filter { it == CloseButton.TEST_SCAN || it == CloseButton.TEST_PROVIDE }) {
+            if (b == CloseButton.TEST_PROVIDE && state.codeSent) {
+                Text(t("ui.code_sent"), color = Mp.colors.success)
+                continue
+            }
+            OutlinedButton(
+                onClick = { if (b == CloseButton.TEST_SCAN) actions.vm.testScan() else actions.vm.testProvide() },
+                enabled = !state.busy,
+                shape = Mp.shapes.button,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            ) { Text(t(b.textKey)) }
+        }
         if (state.can("offer")) {
             val price = state.recommended?.let { " · ${it.toInt()} ${t("ui.currency")}" }.orEmpty()
             Button(onClick = { actions.vm.openOffer(true) }, enabled = !state.busy, shape = Mp.shapes.button,
