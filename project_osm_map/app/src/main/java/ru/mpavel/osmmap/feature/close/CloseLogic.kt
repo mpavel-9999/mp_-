@@ -1,5 +1,6 @@
 package ru.mpavel.osmmap.feature.close
 
+import com.google.mlkit.common.MlKitException
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.common.BitMatrix
@@ -47,3 +48,12 @@ fun closeCodeFrom(n: Notification): String? =
  */
 fun autoConfirm(deal: Deal): Boolean =
     deal.myRole == "client" && deal.client?.isTesting == true && CloseButton.ENTER_CODE.action in deal.actions
+
+/**
+ * Сканер Google недоступен (а не закрыт пользователем): ML Kit - UNAVAILABLE, иначе - ошибка сервисов Google Play.
+ * Закрытие сканера "Назад" приходит как CANCELLED или, на эмуляторе, как INTERNAL - это не повод прятать сканер.
+ */
+fun scannerUnavailable(e: Exception): Boolean = scannerUnavailable((e as? MlKitException)?.errorCode)
+
+/** То же по коду ошибки ML Kit; null - ошибка не ML Kit (сервисы Google Play). */
+fun scannerUnavailable(mlKitCode: Int?): Boolean = mlKitCode == null || mlKitCode == MlKitException.UNAVAILABLE

@@ -52,7 +52,7 @@ data class CloseConfirmState(
     val code: String = "",
     val busy: Boolean = false,
     val actionError: AppError? = null,
-    /** Сканер Google недоступен (нет сервисов Google Play или модуль не скачан) - остаётся ввод цифр. */
+    /** Сканер Google недоступен (нет сервисов Google Play или модуль не скачан) - подсказка про ввод цифр. */
     val scannerFailed: Boolean = false,
     /** Сделка закрыта - экран ведёт к баллам. */
     val closed: Boolean = false,
@@ -172,12 +172,14 @@ fun CloseConfirmScreen(graph: AppGraph, nav: Nav, dealId: Long, initialCode: Str
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 ) { Text(t("ui.confirm_code")) }
                 // камера - в обычном режиме; тестовый агент закрывает без камеры (алгоритм, раздел 5)
-                if (!state.iAmTesting && !state.scannerFailed) {
+                if (!state.iAmTesting) {
                     OutlinedButton(
                         onClick = {
                             GmsBarcodeScanning.getClient(context).startScan()
                                 .addOnSuccessListener { barcode -> barcode.rawValue?.let { vm.submit(it) } }
-                                .addOnFailureListener { vm.scannerFailed() }
+                                // "Назад" в сканере на эмуляторе приходит как INTERNAL (13), а не CANCELLED (найдено в Э6 шаг 8):
+                                // подсказка - только когда сканера действительно нет (модуль или сервисы Google Play)
+                                .addOnFailureListener { e -> if (scannerUnavailable(e)) vm.scannerFailed() }
                         },
                         enabled = !state.busy,
                         shape = Mp.shapes.button,

@@ -1,5 +1,6 @@
 package ru.mpavel.osmmap
 
+import com.google.mlkit.common.MlKitException
 import com.google.zxing.BinaryBitmap
 import com.google.zxing.RGBLuminanceSource
 import com.google.zxing.common.HybridBinarizer
@@ -24,6 +25,7 @@ import ru.mpavel.osmmap.feature.close.closeButtons
 import ru.mpavel.osmmap.feature.close.codeSecondsLeft
 import ru.mpavel.osmmap.feature.close.qrDealId
 import ru.mpavel.osmmap.feature.close.qrMatrix
+import ru.mpavel.osmmap.feature.close.scannerUnavailable
 
 /** Основа закрытия и положения (план Э6, шаги 3, 5): ответы сервера, источник положения, кнопки, таймер, QR. */
 class CloseFlowTest {
@@ -117,5 +119,14 @@ class CloseFlowTest {
         // ввод кода сервер не разрешает (гео-услуга до сближения)
         assertFalse(autoConfirm(deal("client", testing = true, actions = listOf("close"))))
         assertFalse(autoConfirm(deal("provider", testing = true, actions = listOf("close", "show_code"))))
+    }
+
+    @Test
+    fun scannerClosedIsNotUnavailable() {
+        // "Назад" в сканере: CANCELLED, на эмуляторе - INTERNAL (Э6 шаг 8); недоступен - UNAVAILABLE или не ML Kit
+        assertFalse(scannerUnavailable(MlKitException.CANCELLED))
+        assertFalse(scannerUnavailable(MlKitException.INTERNAL))
+        assertTrue(scannerUnavailable(MlKitException.UNAVAILABLE))
+        assertTrue(scannerUnavailable(null as Int?))
     }
 }
