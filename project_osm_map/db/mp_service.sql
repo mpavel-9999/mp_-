@@ -2673,7 +2673,15 @@ INSERT INTO g_src VALUES
 (50140,'ui.slot_cancelled',    NULL,'Снята','Withdrawn',NULL),
 (50141,'ui.route_preview',     NULL,'Линия маршрута построится по дорогам после публикации','The road route is built after publishing',NULL),
 -- Э5 шаг 8: отклик снят (offer_status = withdrawn / expired) - сделка открыта, но своего активного отклика нет
-(50142,'ui.offer_withdrawn',   NULL,'Отклик снят: время занято другой сделкой или истекло','Offer withdrawn: the time is taken by another deal or has expired',NULL);
+(50142,'ui.offer_withdrawn',   NULL,'Отклик снят: время занято другой сделкой или истекло','Offer withdrawn: the time is taken by another deal or has expired',NULL),
+-- Э5 шаг 9: настройки сервиса поставщика
+(50143,'ui.save',               NULL,'Сохранить','Save',NULL),
+(50144,'ui.service_point',      17,'Точка обслуживания','Service point',NULL),
+(50145,'ui.trip_min',           NULL,'Порог стоимости поездки','Minimum trip fare',NULL),
+(50146,'ui.price_per_hour',     NULL,'Цена за час','Price per hour',NULL),
+(50147,'ui.no_changes',         NULL,'Изменений нет','No changes',NULL),
+(50148,'ui.err.check_fields',   NULL,'Проверьте выделенные поля: время - ЧЧ:ММ, рейтинг - от 0 до 5','Check the highlighted fields: time as HH:MM, rating from 0 to 5',NULL),
+(50149,'ui.err.price_min_max',  NULL,'Минимальная цена больше максимальной','The minimum price is above the maximum',NULL);
 
 INSERT INTO glossary (glossary_id, glossary_code, icon_id) SELECT id, code, icon FROM g_src;
 INSERT INTO glossary_text (glossary_id, interface_lang_id, text_value, search_text)

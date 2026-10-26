@@ -18,7 +18,11 @@ import ru.mpavel.osmmap.data.Slot
 import ru.mpavel.osmmap.feature.deal.offererNoteKey
 import ru.mpavel.osmmap.feature.provider.OfferState
 import ru.mpavel.osmmap.feature.provider.SlotState
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
 import ru.mpavel.osmmap.feature.provider.buildOfferCreate
+import ru.mpavel.osmmap.feature.provider.buildServiceUpdate
+import ru.mpavel.osmmap.feature.provider.formOf
 import ru.mpavel.osmmap.feature.provider.buildSlotCreate
 import ru.mpavel.osmmap.feature.provider.visibleRequests
 import ru.mpavel.osmmap.ui.map.LatLon
@@ -138,5 +142,25 @@ class ProviderFlowTest {
         assertEquals("ui.offer_withdrawn", offererNoteKey(deal("OFFERS", "offerer"), emptyList()))
         // согласовали с другим
         assertEquals("ui.offer_declined", offererNoteKey(deal("AGREED", "offerer"), emptyList()))
+    }
+
+    @Test
+    fun serviceSettingsBody() {
+        val s = MyService(serviceId = 1101, name = "e", priceUnit = "km", lat = 43.239, lon = 76.889, zoneRadiusM = 5000.0,
+                          workTimeFrom = "08:00:00", priceMin = 700.0, priceMax = 5000.0, unitPriceMin = 150.0, isAuto = false)
+        val form = formOf(s)
+        assertEquals("08:00", form.timeFrom)
+        assertEquals("700", form.priceMin)
+        // без изменений - пустое тело
+        assertTrue(buildServiceUpdate(s, form).body.isEmpty())
+        // только изменённое: цена и автоотклик; очищенное время - null; новая точка - lat и lon
+        val body = buildServiceUpdate(s, form.copy(priceMin = "800", isAuto = true, timeFrom = "", point = LatLon(43.25, 76.9))).body
+        assertEquals(setOf("price_min", "is_auto", "work_time_from", "lat", "lon"), body.keys)
+        assertEquals(JsonPrimitive(800.0), body["price_min"])
+        assertEquals(JsonNull, body["work_time_from"])
+        // проверки до отправки
+        assertEquals(setOf("work_time_to"), buildServiceUpdate(s, form.copy(timeTo = "25:00")).invalid)
+        assertEquals(setOf("client_rating_min"), buildServiceUpdate(s, form.copy(ratingMin = "6")).invalid)
+        assertEquals("ui.err.price_min_max", buildServiceUpdate(s, form.copy(priceMin = "6000")).errorKey)
     }
 }

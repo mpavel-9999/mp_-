@@ -1,5 +1,6 @@
 package ru.mpavel.osmmap.data
 
+import kotlinx.serialization.json.JsonObject
 import ru.mpavel.osmmap.core.net.ApiClient
 import ru.mpavel.osmmap.core.net.decodeBody
 import ru.mpavel.osmmap.core.net.SessionStore
@@ -105,7 +106,8 @@ class ProviderRepository(private val api: ApiClient) {
 
     suspend fun offer(dealId: Long, request: OfferCreate): List<Offer> = api.post("/deals/$dealId/offers", request)
 
-    suspend fun saveService(serviceId: Long, update: ServiceSettingsUpdate): StatusOk = api.put("/me/services/$serviceId", update)
+    /** Тело - только изменённые поля (snake_case); JsonNull очищает поле, отсутствующий ключ не меняет. */
+    suspend fun saveService(serviceId: Long, update: JsonObject): StatusOk = api.put("/me/services/$serviceId", update)
 }
 
 /** Уведомления in_app (опрос раз в 2-5 с - на экранах, Э4). */

@@ -431,22 +431,6 @@ data class IncomingRequest(
 @Serializable
 data class MyOffer(val dealOfferId: Long, val price: Double, val status: String)
 
-/** PUT /me/services/{id}: отсутствующие поля не меняются. */
-@Serializable
-data class ServiceSettingsUpdate(
-    val lat: Double? = null,
-    val lon: Double? = null,
-    val zoneRadiusM: Double? = null,
-    val workTimeFrom: String? = null,
-    val workTimeTo: String? = null,
-    val priceMin: Double? = null,
-    val priceMax: Double? = null,
-    val unitPriceMin: Double? = null,
-    val clientRatingMin: Double? = null,
-    val isAuto: Boolean? = null,
-    val capacity: Int? = null,
-)
-
 // ---------------------------------------------------------------- уведомления
 
 @Serializable
