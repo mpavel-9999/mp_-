@@ -1133,7 +1133,8 @@ BEGIN
 
     -- 5.1.3 гео-услугу закрывают только после сближения; online - из AGREED
     IF v_from = 'AGREED' AND v_to = 'CLOSED' AND get_setting(NEW.service_id, 'place_mode') <> 'online' THEN
-        RAISE EXCEPTION 'Закрыть сделку можно только после сближения сторон (CONTACT)';
+        RAISE EXCEPTION 'Закрыть сделку можно только после сближения сторон (CONTACT)'
+            USING HINT = 'CONTACT_REQUIRED';
     END IF;
     -- 5.3, 5.4 причина обязательна при отмене со штрафом
     IF v_to IN ('CANCEL_CLIENT','CANCEL_PROVIDER') AND v_reason IS NULL AND v_comment IS NULL THEN
@@ -1748,11 +1749,41 @@ BEGIN
 END
 $$;
 
+-- Сближение сторон (п. 4, AGREED -> CONTACT): после обновления положения и в плановом задании (Э6, В-Э6-1)
+CREATE FUNCTION deal_contact_check(p_agent_id numeric DEFAULT NULL)
+RETURNS numeric[] LANGUAGE plpgsql SET search_path = mp_service AS $$
+    -- Что делает: Переводит в CONTACT согласованные гео-сделки, стороны которых сблизились; возвращает номера переведенных сделок.
+    -- Методика: Сделки AGREED агента (p_agent_id - клиент или поставщик) или все (NULL), кроме place_mode = online; свежие положения обеих сторон (не старше position_ttl_s) ближе near_radius_m. Переход выполняет система: mp.agent_id на время перевода очищается и затем восстанавливается, чтобы вызов из транзакции агента не менял ее автора.
+DECLARE
+    r       record;
+    v_ids   numeric[] := '{}';
+    v_agent text := current_setting('mp.agent_id', true);
+BEGIN
+    PERFORM set_config('mp.agent_id', '', true);
+    FOR r IN SELECT d.deal_id FROM deal d
+             JOIN agent_position pc ON pc.agent_id = d.client_agent_id
+             JOIN agent_position pp ON pp.agent_id = d.provider_agent_id
+             WHERE d.deal_status_id = dict_id('DEAL_STATUS','AGREED')
+               AND (p_agent_id IS NULL OR p_agent_id IN (d.client_agent_id, d.provider_agent_id))
+               AND get_setting(d.service_id, 'place_mode') <> 'online'
+               AND pc.date_update >= now() - make_interval(secs => get_setting(d.service_id, 'position_ttl_s')::int)
+               AND pp.date_update >= now() - make_interval(secs => get_setting(d.service_id, 'position_ttl_s')::int)
+               AND geo_distance_m(pc.geo_lat, pc.geo_lon, pp.geo_lat, pp.geo_lon)
+                   <= get_setting(d.service_id, 'near_radius_m')::numeric
+             FOR UPDATE OF d LOOP
+        UPDATE deal SET deal_status_id = dict_id('DEAL_STATUS','CONTACT') WHERE deal_id = r.deal_id;
+        v_ids := v_ids || r.deal_id;
+    END LOOP;
+    PERFORM set_config('mp.agent_id', coalesce(v_agent, ''), true);
+    RETURN v_ids;
+END
+$$;
+
 -- Плановые задания (п. 5.5, 4.6), вызывает сервер раз в минуту от имени системы
 CREATE FUNCTION run_deal_jobs()
 RETURNS jsonb LANGUAGE plpgsql SET search_path = mp_service AS $$
     -- Что делает: Плановые задания по сделкам, вызывает сервер раз в минуту от имени системы (п. 4.6, 5.5).
-    -- Методика: Истечение открытых сделок к началу периода; CONTACT при сближении сторон; вопрос "Услуга оказана?" после периода; NOT_CLOSED через сутки с сигналом антифроду, если стороны встречались; закрытие прошедших публикаций. Возвращает счетчики.
+    -- Методика: Истечение открытых сделок к началу периода; CONTACT при сближении сторон (deal_contact_check по всем сделкам - запасной путь к проверке после PUT /me/position); вопрос "Услуга оказана?" после периода; NOT_CLOSED через сутки с сигналом антифроду, если стороны встречались; закрытие прошедших публикаций. Возвращает счетчики.
 DECLARE
     r          record;
     v_expired  int := 0;
@@ -1772,19 +1803,8 @@ BEGIN
         v_expired := v_expired + 1;
     END LOOP;
 
-    -- сближение сторон
-    FOR r IN SELECT d.deal_id FROM deal d
-             JOIN agent_position pc ON pc.agent_id = d.client_agent_id
-             JOIN agent_position pp ON pp.agent_id = d.provider_agent_id
-             WHERE d.deal_status_id = dict_id('DEAL_STATUS','AGREED')
-               AND get_setting(d.service_id, 'place_mode') <> 'online'
-               AND pc.date_update >= now() - make_interval(secs => get_setting(d.service_id, 'position_ttl_s')::int)
-               AND pp.date_update >= now() - make_interval(secs => get_setting(d.service_id, 'position_ttl_s')::int)
-               AND geo_distance_m(pc.geo_lat, pc.geo_lon, pp.geo_lat, pp.geo_lon)
-                   <= get_setting(d.service_id, 'near_radius_m')::numeric LOOP
-        UPDATE deal SET deal_status_id = dict_id('DEAL_STATUS','CONTACT') WHERE deal_id = r.deal_id;
-        v_contact := v_contact + 1;
-    END LOOP;
+    -- сближение сторон (запасной путь: обычно CONTACT ставит PUT /me/position)
+    v_contact := cardinality(deal_contact_check(NULL));
 
     -- вопрос "Услуга оказана?" после окончания периода
     FOR r IN SELECT d.deal_id, d.client_agent_id, d.provider_agent_id FROM deal d
@@ -2306,7 +2326,8 @@ BEGIN
     ('deal_other_side_late', 'Опаздывает ли другая сторона сделки (для бесплатной отмены, В-3). Период начался, а свежее положение другой стороны дальше near_radius_m от места встречи (точка отклика для place_mode = provider, иначе точка клиента).'),
     ('deal_cancel_mode', 'Каким будет итог отмены сделки агентом прямо сейчас (п. 5.2-5.4): CANCEL_FREE, CANCEL_CLIENT, CANCEL_PROVIDER или NULL - отменить нельзя. До согласования, в окне cancel_free_min до CONTACT или при опоздании другой стороны - бесплатно; иначе штраф стороне-инициатору. Одно правило для deal_cancel и предупреждения в приложении (GET /deals/{id}, поле cancel_mode).'),
     ('deal_cancel', 'Отмена сделки стороной; итоговый статус решает БД (п. 5.2-5.4). Итог берется из deal_cancel_mode (бесплатно или штраф инициатору), для отмен со штрафом причина обязательна; активные отклики истекают; отмена после CONTACT - эпизод фрода NEAR_CANCEL.'),
-    ('run_deal_jobs', 'Плановые задания по сделкам, вызывает сервер раз в минуту от имени системы (п. 4.6, 5.5). Истечение открытых сделок к началу периода; CONTACT при сближении сторон; вопрос "Услуга оказана?" после периода; NOT_CLOSED через сутки с сигналом антифроду, если стороны встречались; закрытие прошедших публикаций. Возвращает счетчики.')
+    ('deal_contact_check', 'Переводит в CONTACT согласованные гео-сделки, стороны которых сблизились (п. 4, В-Э6-1); возвращает номера переведенных сделок. Сделки AGREED агента (клиент или поставщик) или все при NULL, кроме place_mode = online; свежие положения обеих сторон (не старше position_ttl_s) ближе near_radius_m. Переход выполняет система: mp.agent_id на время перевода очищается и восстанавливается. Вызывают сервер после PUT /me/position и run_deal_jobs.'),
+    ('run_deal_jobs', 'Плановые задания по сделкам, вызывает сервер раз в минуту от имени системы (п. 4.6, 5.5). Истечение открытых сделок к началу периода; CONTACT при сближении сторон (deal_contact_check по всем сделкам - запасной путь к проверке после PUT /me/position); вопрос "Услуга оказана?" после периода; NOT_CLOSED через сутки с сигналом антифроду, если стороны встречались; закрытие прошедших публикаций. Возвращает счетчики.')
         ) v(name, descr)
         JOIN pg_proc p ON p.proname = v.name
         JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'mp_service'
@@ -2681,7 +2702,24 @@ INSERT INTO g_src VALUES
 (50146,'ui.price_per_hour',     NULL,'Цена за час','Price per hour',NULL),
 (50147,'ui.no_changes',         NULL,'Изменений нет','No changes',NULL),
 (50148,'ui.err.check_fields',   NULL,'Проверьте выделенные поля: время - ЧЧ:ММ, рейтинг - от 0 до 5','Check the highlighted fields: time as HH:MM, rating from 0 to 5',NULL),
-(50149,'ui.err.price_min_max',  NULL,'Минимальная цена больше максимальной','The minimum price is above the maximum',NULL);
+(50149,'ui.err.price_min_max',  NULL,'Минимальная цена больше максимальной','The minimum price is above the maximum',NULL),
+-- Э6: положение и закрытие сделки (термины 50042-50052, 50073, 50087 - с Э1)
+(50150,'ui.open_code',          33,'Показать код','Show code',NULL),
+(50151,'ui.scan_camera',        33,'Сканировать камерой','Scan with camera',NULL),
+(50152,'ui.code_sent',          NULL,'Код отправлен клиенту','Code sent to the client',NULL),
+(50153,'ui.code_hint',          NULL,'Введите цифры с экрана поставщика','Enter the digits from the provider''s screen',NULL),
+(50154,'ui.confirm_code',       NULL,'Подтвердить','Confirm',NULL),
+(50155,'ui.distance_to_other',  NULL,'До другой стороны {m} м, контакт - ближе {r} м','To the other side {m} m, contact within {r} m',NULL),
+(50156,'ui.my_position',        NULL,'Моё положение','My position',NULL),
+(50157,'ui.gps_needed',         NULL,'Разрешите доступ к геолокации, чтобы отметить встречу','Allow location access to register the meeting',NULL),
+(50158,'ui.gps_denied',         NULL,'Геолокация запрещена - положение не отправляется','Location access denied - position is not sent',NULL),
+(50159,'ui.position_unknown',   NULL,'Положение неизвестно','Position unknown',NULL),
+(50160,'ui.err.code_invalid',   NULL,'Неверный код','Invalid code',NULL),
+(50161,'ui.err.code_expired',   NULL,'Код устарел - попросите показать новый','The code has expired - ask for a new one',NULL),
+(50162,'ui.err.contact_required',NULL,'Закрыть сделку можно, когда вы рядом с другой стороной','You can close the deal when you are near the other side',NULL),
+(50163,'ui.err.deal_not_closable',NULL,'Закрыть можно только согласованную сделку','Only an agreed deal can be closed',NULL),
+(50164,'ui.err.not_testing',    NULL,'Доступно только в режиме тестирования','Available in testing mode only',NULL),
+(50165,'ui.err.scanner_unavailable',NULL,'Сканер недоступен - введите цифры','Scanner unavailable - enter the digits',NULL);
 
 INSERT INTO glossary (glossary_id, glossary_code, icon_id) SELECT id, code, icon FROM g_src;
 INSERT INTO glossary_text (glossary_id, interface_lang_id, text_value, search_text)
