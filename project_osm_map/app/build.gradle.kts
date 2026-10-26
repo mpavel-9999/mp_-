@@ -49,6 +49,10 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-svg:3.6.3")
     implementation("org.osmdroid:osmdroid-android:6.1.20")
 
+    // Код закрытия (Э6): QR рисуем сами (ZXing core), сканер в обычном режиме - Google Code Scanner (В-Э6-3)
+    implementation("com.google.zxing:core:3.5.4")
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 
     testImplementation("junit:junit:4.13.2")

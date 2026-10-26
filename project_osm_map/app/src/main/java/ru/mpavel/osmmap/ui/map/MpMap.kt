@@ -61,6 +61,8 @@ data class MapMarker(
     val title: String,
     val snippet: String? = null,
     val svg: String? = null,
+    /** Свой курсор в режиме тестирования: перетаскивается, отпускание - [MpMap] onMarkerDragEnd (Э6). */
+    val draggable: Boolean = false,
 )
 
 /** Зона клиента: точка и радиус в метрах. */
@@ -130,6 +132,10 @@ fun MpMap(
     onMarkerClick: (String) -> Unit = {},
     /** Нажатие на свободное место карты (выбор точки запроса); null - карта только для просмотра. */
     onMapTap: ((LatLon) -> Unit)? = null,
+    /** Долгое нажатие на карту - поставить свой курсор в эту точку (режим тестирования, В-Э6-2). */
+    onMapLongPress: ((LatLon) -> Unit)? = null,
+    /** Перетаскиваемый маркер ([MapMarker.draggable]) отпущен в новой точке. */
+    onMarkerDragEnd: (String, LatLon) -> Unit = { _, _ -> },
     /** Где подпись правообладателя: там, где её не закроют шторка или кнопки раскладки. */
     attributionAlignment: Alignment = Alignment.BottomEnd,
 ) {
@@ -182,14 +188,17 @@ fun MpMap(
             modifier = Modifier.fillMaxSize().clipToBounds(),
             update = { view ->
                 view.overlays.clear()
-                if (onMapTap != null) {
+                if (onMapTap != null || onMapLongPress != null) {
                     view.overlays.add(MapEventsOverlay(object : MapEventsReceiver {
                         override fun singleTapConfirmedHelper(p: GeoPoint): Boolean {
-                            onMapTap(LatLon(p.latitude, p.longitude))
+                            onMapTap?.invoke(LatLon(p.latitude, p.longitude)) ?: return false
                             return true
                         }
 
-                        override fun longPressHelper(p: GeoPoint): Boolean = false
+                        override fun longPressHelper(p: GeoPoint): Boolean {
+                            onMapLongPress?.invoke(LatLon(p.latitude, p.longitude)) ?: return false
+                            return true
+                        }
                     }))
                 }
                 for (line in lines) {
@@ -216,6 +225,16 @@ fun MpMap(
                         snippet = m.snippet
                         bitmaps[m.id]?.let { icon = BitmapDrawable(view.resources, it) }
                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                        if (m.draggable) {
+                            // osmdroid: долгое нажатие на маркер и тянуть (В-Э6-2)
+                            isDraggable = true
+                            setOnMarkerDragListener(object : Marker.OnMarkerDragListener {
+                                override fun onMarkerDragStart(marker: Marker) = Unit
+                                override fun onMarkerDrag(marker: Marker) = Unit
+                                override fun onMarkerDragEnd(marker: Marker) =
+                                    onMarkerDragEnd(m.id, LatLon(marker.position.latitude, marker.position.longitude))
+                            })
+                        }
                         setOnMarkerClickListener { marker, _ ->
                             marker.showInfoWindow()
                             onMarkerClick(m.id)

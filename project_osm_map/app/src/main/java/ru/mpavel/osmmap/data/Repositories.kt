@@ -39,7 +39,7 @@ class SessionRepository(private val api: ApiClient, private val store: SessionSt
 
     suspend fun me(): Me = api.get("/me")
 
-    suspend fun updatePosition(update: PositionUpdate): StatusOk = api.put("/me/position", update)
+    suspend fun updatePosition(update: PositionUpdate): PositionResult = api.put("/me/position", update)
 }
 
 /** Поиск услуг, формы и настройки узлов. */

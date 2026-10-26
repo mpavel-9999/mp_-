@@ -10,6 +10,7 @@ import coil3.SingletonImageLoader
 import coil3.svg.SvgDecoder
 import org.osmdroid.config.Configuration
 import ru.mpavel.osmmap.core.config.ConfigRepository
+import ru.mpavel.osmmap.core.location.PositionSender
 import ru.mpavel.osmmap.core.net.ApiClient
 import ru.mpavel.osmmap.core.notify.NotificationCenter
 import ru.mpavel.osmmap.core.net.SessionStore
@@ -33,6 +34,7 @@ class AppGraph(context: Context) {
     val notifications = NotificationRepository(api)
     val notifyCenter = NotificationCenter(notifications)
     val skipped = SkippedRequests(context)
+    val positions = PositionSender(context, session)
 }
 
 class MpApp : Application(), SingletonImageLoader.Factory {

@@ -376,7 +376,7 @@ fun OffersList(state: DealState, actions: DealActions, dense: Boolean = false) {
     val role = state.deal?.myRole
     Column {
         if (role == "candidate" || role == "offerer") {
-            state.deal?.let { PartyBlock(it) }
+            PartyBlock(state.deal)
             for (o in state.offers) OfferCard(o, state, actions, dense)
             return@Column
         }

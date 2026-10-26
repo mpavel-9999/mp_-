@@ -117,6 +117,7 @@ class AppViewModel(private val graph: AppGraph) : ViewModel() {
         viewModelScope.launch {
             graph.api.unauthorized.collect {
                 graph.notifyCenter.stop()
+                graph.positions.reset()
                 graph.session.forget()
                 _state.value = AppState.LoggedOut
             }
@@ -145,6 +146,7 @@ class AppViewModel(private val graph: AppGraph) : ViewModel() {
         viewModelScope.launch {
             graph.notifyCenter.stop()
             graph.skipped.clear()
+            graph.positions.reset()
             runCatching { graph.session.logout() }
             _state.value = AppState.LoggedOut
         }

@@ -320,6 +320,10 @@ data class Position(
 @Serializable
 data class PositionUpdate(val lat: Double, val lon: Double, val source: String = "gps", val accuracyM: Double? = null)
 
+/** Ответ PUT /me/position: сделки, которые сразу перешли в CONTACT (Э6, В-Э6-1). */
+@Serializable
+data class PositionResult(val status: String = "ok", val contact: List<Long> = emptyList())
+
 @Serializable
 data class CloseCode(val method: String, val code: String, val qrPayload: String, val ttlS: Int, val expiresInS: Int)
 
