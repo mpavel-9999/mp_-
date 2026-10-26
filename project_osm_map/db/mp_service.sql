@@ -2714,7 +2714,7 @@ INSERT INTO g_src VALUES
 (50156,'ui.my_position',        NULL,'Моё положение','My position',NULL),
 (50157,'ui.gps_needed',         NULL,'Разрешите доступ к геолокации, чтобы отметить встречу','Allow location access to register the meeting',NULL),
 (50158,'ui.gps_denied',         NULL,'Геолокация запрещена - положение не отправляется','Location access denied - position is not sent',NULL),
-(50159,'ui.position_unknown',   NULL,'Положение неизвестно','Position unknown',NULL),
+(50159,'ui.position_unknown',   NULL,'Положение второй стороны неизвестно','The other side''s position is unknown',NULL),
 (50160,'ui.err.code_invalid',   NULL,'Неверный код','Invalid code',NULL),
 (50161,'ui.err.code_expired',   NULL,'Код устарел - попросите показать новый','The code has expired - ask for a new one',NULL),
 (50162,'ui.err.contact_required',NULL,'Закрыть сделку можно, когда вы рядом с другой стороной','You can close the deal when you are near the other side',NULL),
