@@ -52,8 +52,14 @@
       "output_tokens": 0,
       "files": 3,
       "note": "SQL files added (tree-sitter-sql)"
+    },
+    {
+      "date": "2026-10-26T10:35:54.430876+00:00",
+      "input_tokens": 113025,
+      "output_tokens": 0,
+      "files": 32
     }
   ],
-  "total_input_tokens": 360000,
+  "total_input_tokens": 473025,
   "total_output_tokens": 0
 }
