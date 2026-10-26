@@ -19,6 +19,7 @@ import ru.mpavel.osmmap.data.Deal
 import ru.mpavel.osmmap.data.DealRepository
 import ru.mpavel.osmmap.data.Offer
 import ru.mpavel.osmmap.data.Position
+import ru.mpavel.osmmap.data.ProviderRepository
 import ru.mpavel.osmmap.data.RouteLink
 
 /** Статусы до согласования - экран откликов; после - экран сделки (алгоритм, раздел 2). */
@@ -35,6 +36,9 @@ data class DealState(
     val busy: Boolean = false,
     val actionError: AppError? = null,
     val cancelOpen: Boolean = false,
+    /** Кандидат: рекомендованная цена из GET /requests (для такси - по тарифу) и открыт ли диалог отклика. */
+    val recommended: Double? = null,
+    val offerOpen: Boolean = false,
 ) {
     val isOpen: Boolean get() = deal?.status in OPEN_STATUSES
 
@@ -43,16 +47,30 @@ data class DealState(
     fun can(action: String): Boolean = deal?.actions?.contains(action) == true
 }
 
+/**
+ * Пометка для откликнувшегося поставщика (offerer): ждём клиента, отклик снят или клиент выбрал другого.
+ * Список откликов поставщику - только свой и только active/selected (v_deal_offer_list), поэтому снятый отклик - пустой список.
+ */
+fun offererNoteKey(deal: Deal?, offers: List<Offer>): String? = when {
+    deal?.myRole != "offerer" -> null
+    deal.status !in OPEN_STATUSES -> "ui.offer_declined"
+    offers.any { it.offerStatus == "active" } -> "ui.waiting_client"
+    else -> "ui.offer_withdrawn"
+}
+
 sealed interface DealEvent {
     data class Review(val dealId: Long) : DealEvent
 }
 
 /**
- * Сделка клиента: отклики и согласование (п. 4), затем этапы, маршрут, положения сторон, отмена (п. 5.2-5.4).
+ * Сделка глазами любой стороны (роль - Deal.myRole): клиент - отклики и согласование (п. 4);
+ * поставщик-кандидат - запрос и отклик (п. 3.3); откликнувшийся - свой отклик и ожидание; исполнитель - сделка.
+ * Затем этапы, маршрут, положения сторон, отмена (п. 5.2-5.4).
  * Свежесть - по уведомлениям этой сделки (опрос раз в 2 с, пока экран открыт); положения сторон - раз в 5 с.
  */
 class DealViewModel(
     private val deals: DealRepository,
+    private val provider: ProviderRepository,
     private val center: NotificationCenter,
     private val dealId: Long,
 ) : ViewModel() {
@@ -65,11 +83,15 @@ class DealViewModel(
     init {
         center.fast(true)
         load()
-        viewModelScope.launch { center.events.filter { it.dealId == dealId }.collect { load(quiet = true) } }
+        // откликнувшемуся - по любому уведомлению: отклик снимается, когда его выбрали в другой сделке (уведомление - о ней)
+        viewModelScope.launch {
+            center.events.filter { it.dealId == dealId || _state.value.deal?.myRole == "offerer" }.collect { load(quiet = true) }
+        }
         viewModelScope.launch {
             while (isActive) {
                 delay(POSITIONS_MS)
-                if (_state.value.deal?.status in AGREED_STATUSES) refreshPositions()
+                val d = _state.value.deal
+                if (d?.status in AGREED_STATUSES && (d?.myRole == "client" || d?.myRole == "provider")) refreshPositions()
             }
         }
     }
@@ -86,9 +108,17 @@ class DealViewModel(
                 val deal = deals.get(dealId)
                 val offers = deals.offers(dealId)
                 val agreed = deal.status in AGREED_STATUSES
-                val routes = if (agreed) runCatching { deals.routes(dealId) }.getOrDefault(emptyList()) else emptyList()
-                _state.update { it.copy(loading = false, deal = deal, offers = offers.sortedBy { o -> o.position ?: Int.MAX_VALUE }, routes = routes) }
-                if (agreed) refreshPositions()
+                // маршрут и положения - только сторонам сделки (откликнувшийся, которого не выбрали, их не получает)
+                val party = deal.myRole == "client" || deal.myRole == "provider"
+                val routes = if (agreed && party) runCatching { deals.routes(dealId) }.getOrDefault(emptyList()) else emptyList()
+                val recommended = if ("offer" in deal.actions) {
+                    runCatching { provider.requests().firstOrNull { it.dealId == dealId }?.recommendedPrice }.getOrNull()
+                } else null
+                _state.update {
+                    it.copy(loading = false, deal = deal, offers = offers.sortedBy { o -> o.position ?: Int.MAX_VALUE }, routes = routes,
+                            recommended = recommended ?: it.recommended)
+                }
+                if (agreed && party) refreshPositions()
             } catch (e: AppError) {
                 _state.update { it.copy(loading = false, error = if (it.deal == null) e else null, actionError = if (it.deal != null) e else null) }
             }
@@ -111,6 +141,14 @@ class DealViewModel(
     }
 
     fun openCancel(open: Boolean) = _state.update { it.copy(cancelOpen = open, actionError = null) }
+
+    /** Отклик кандидата - общий диалог OfferDialog; после отправки роль становится offerer. */
+    fun openOffer(open: Boolean) = _state.update { it.copy(offerOpen = open, actionError = null) }
+
+    fun offerSent() {
+        openOffer(false)
+        load(quiet = true)
+    }
 
     /** Отмена: итог решает БД (deal_cancel); пострадавшей стороне - баллы (п. 5.6). */
     fun cancel(reasonId: Long?, comment: String?) = act {

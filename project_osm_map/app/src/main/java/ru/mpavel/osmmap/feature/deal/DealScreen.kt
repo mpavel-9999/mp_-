@@ -49,6 +49,7 @@ import ru.mpavel.osmmap.data.CancelReason
 import ru.mpavel.osmmap.data.Deal
 import ru.mpavel.osmmap.data.FieldValue
 import ru.mpavel.osmmap.data.Offer
+import ru.mpavel.osmmap.feature.provider.OfferDialog
 import ru.mpavel.osmmap.ui.common.ErrorBox
 import ru.mpavel.osmmap.ui.common.LoadingBox
 import ru.mpavel.osmmap.ui.common.errorMessage
@@ -74,7 +75,7 @@ class DealActions(val vm: DealViewModel, val onReview: () -> Unit)
  */
 @Composable
 fun DealScreen(graph: AppGraph, nav: Nav, dealId: Long) {
-    val vm: DealViewModel = viewModel(key = "deal:$dealId") { DealViewModel(graph.deals, graph.notifyCenter, dealId) }
+    val vm: DealViewModel = viewModel(key = "deal:$dealId") { DealViewModel(graph.deals, graph.provider, graph.notifyCenter, dealId) }
     val state by vm.state.collectAsStateWithLifecycle()
     val config by graph.config.config.collectAsStateWithLifecycle()
     LaunchedEffect(vm) { vm.events.collect { if (it is DealEvent.Review) nav.review(it.dealId) } }
@@ -98,6 +99,14 @@ fun DealScreen(graph: AppGraph, nav: Nav, dealId: Long) {
     }
     if (state.cancelOpen && deal != null) {
         CancelDialog(deal, config?.cancelReasons.orEmpty(), state, actions)
+    }
+    if (state.offerOpen && deal != null) {
+        OfferDialog(
+            graph, dealId, deal.serviceId, state.recommended,
+            onSent = vm::offerSent,
+            onReviewFirst = { id -> vm.openOffer(false); nav.review(id) },
+            onDismiss = { vm.openOffer(false) },
+        )
     }
 }
 
@@ -156,7 +165,8 @@ fun DealMap(state: DealState, modifier: Modifier = Modifier, attributionAlignmen
                           svg = icons.cursors[if (o.isTesting) "PROVIDER_TEST" else "PROVIDER"]))
         }
         for (p in state.positions) {
-            add(MapMarker("pos:${p.agentId}", LatLon(p.lat, p.lon), p.role, svg = icons.cursors[p.cursor]))
+            // p.role - код роли (client / provider), подпись - из глоссария
+            add(MapMarker("pos:${p.agentId}", LatLon(p.lat, p.lon), t("ui.role_${p.role}"), svg = icons.cursors[p.cursor]))
         }
     }
     // масштаб по зоне: парковка 100 м - крупно, такси и доставка - шире
@@ -188,7 +198,8 @@ fun DealHeader(deal: Deal) {
             Text(formatPeriod(parseServerTime(deal.periodStart), parseServerTime(deal.periodEnd)),
                  fontFamily = Mp.fonts.mono, color = Mp.colors.textMuted, style = MaterialTheme.typography.bodyMedium)
         }
-        val price = deal.priceTotal ?: deal.clientPrice
+        // исполнителю - его цена (без комиссии платформы), клиенту - итог
+        val price = (if (deal.myRole == "provider") deal.priceProvider else null) ?: deal.priceTotal ?: deal.clientPrice
         val forecast = if (deal.priceForecastMin != null) "${deal.priceForecastMin.toInt()}–${deal.priceForecastMax?.toInt()}" else null
         Text(
             listOfNotNull(price?.let { "${t("ui.price")}: ${it.toInt()} $currency" }, forecast?.let { "${t("ui.forecast")}: $it $currency" })
@@ -259,7 +270,7 @@ fun PartyBlock(deal: Deal) {
                      fontFamily = Mp.fonts.mono, color = Mp.colors.textMuted)
             }
             FieldList(deal.counterpartFields)
-            if (deal.status == "AGREED") {
+            if (deal.status == "AGREED" && (deal.myRole == "client" || deal.myRole == "provider")) {
                 Text(t("ui.contacts_near"), style = MaterialTheme.typography.bodySmall, color = Mp.colors.textMuted)
             }
         }
@@ -298,11 +309,20 @@ fun RouteLinks(state: DealState) {
     }
 }
 
-/** Действия сделки из Deal.actions: отмена и баллы; закрытие кодом - этап Э6. */
+/** Действия сделки из Deal.actions: отклик кандидата, отмена и баллы; закрытие кодом - этап Э6. */
 @Composable
 fun DealActionsRow(state: DealState, actions: DealActions) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         state.actionError?.let { Text(errorMessage(it), color = Mp.colors.danger) }
+        offererNoteKey(state.deal, state.offers)?.let { key ->
+            Text(t(key), color = if (key == "ui.waiting_client") Mp.colors.textMuted else Mp.colors.warning,
+                 style = MaterialTheme.typography.bodyMedium)
+        }
+        if (state.can("offer")) {
+            val price = state.recommended?.let { " · ${it.toInt()} ${t("ui.currency")}" }.orEmpty()
+            Button(onClick = { actions.vm.openOffer(true) }, enabled = !state.busy, shape = Mp.shapes.button,
+                   modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(t("ui.respond") + price) }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (state.can("review")) {
                 Button(onClick = actions.onReview, shape = Mp.shapes.button, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
@@ -347,10 +367,19 @@ fun OfferCard(o: Offer, state: DealState, actions: DealActions, dense: Boolean =
     }
 }
 
-/** Список откликов или ожидание первого (MATCHING). */
+/**
+ * Клиенту - список откликов или ожидание первого (MATCHING). Поставщику до согласования:
+ * кандидату - клиент и поля запроса; откликнувшемуся - свой отклик (пометка - в DealActionsRow).
+ */
 @Composable
 fun OffersList(state: DealState, actions: DealActions, dense: Boolean = false) {
+    val role = state.deal?.myRole
     Column {
+        if (role == "candidate" || role == "offerer") {
+            state.deal?.let { PartyBlock(it) }
+            for (o in state.offers) OfferCard(o, state, actions, dense)
+            return@Column
+        }
         state.actionError?.let { Text(errorMessage(it), color = Mp.colors.danger) }
         if (state.offers.isEmpty()) {
             Row(Modifier.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {

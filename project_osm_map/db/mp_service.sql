@@ -1606,7 +1606,7 @@ $$;
 CREATE FUNCTION deal_agree(p_deal_id numeric, p_offer_id numeric)
 RETURNS void LANGUAGE plpgsql SET search_path = mp_service AS $$
     -- Что делает: Согласование отклика клиентом в одной транзакции (п. 4.4).
-    -- Методика: Блокирует сделку, проверяет клиента, активность отклика и занятость поставщика; выбранный отклик - selected, остальные - declined; сделке поставщик, цена и статус AGREED; при исчерпании лимита снимает другие отклики поставщика на это время и уведомляет их клиентов.
+    -- Методика: Блокирует сделку, проверяет клиента, активность отклика и занятость поставщика; выбранный отклик - selected, остальные - declined с уведомлением OFFER_DECLINED их поставщикам; сделке поставщик, цена и статус AGREED; при исчерпании лимита снимает другие отклики поставщика на это время и уведомляет их клиентов.
 DECLARE
     d     deal%ROWTYPE;
     o     deal_offer%ROWTYPE;
@@ -1632,6 +1632,11 @@ BEGIN
     UPDATE deal_offer
     SET offer_status = CASE WHEN deal_offer_id = p_offer_id THEN 'selected' ELSE 'declined' END
     WHERE deal_id = p_deal_id AND offer_status = 'active';
+
+    -- невыбранным поставщикам - уведомление: сделка пропадает из их списков, иначе об отказе не узнать (Э5 шаг 8)
+    FOR r IN SELECT deal_offer_id, provider_agent_id FROM deal_offer WHERE deal_id = p_deal_id AND offer_status = 'declined' LOOP
+        PERFORM notify_agent(r.provider_agent_id, p_deal_id, 'OFFER_DECLINED', jsonb_build_object('deal_offer_id', r.deal_offer_id));
+    END LOOP;
 
     v_fee := round(o.offer_price * coalesce(get_setting(d.service_id, 'deal_fee_percent')::numeric, 0) / 100, 2);
     UPDATE deal
@@ -2297,7 +2302,7 @@ BEGIN
     ('price_forecast', 'Прогноз цены услуги в точке (П-5). Нижняя граница - минимальная цена поставщиков рядом, верхняя - медиана их максимумов, медиана - по закрытым сделкам сервиса в ячейке forecast_grid_m за 90 дней (иначе середина диапазона).'),
     ('auto_offer_price', 'Цена автоотклика (В-5). Цена клиента, если она в диапазоне поставщика; иначе медиана прогноза, ограниченная диапазоном и округленная до шага.'),
     ('make_auto_offers', 'Создает автоотклики на сделку всех подходящих поставщиков с is_auto = 1 (п. 3.1). Берет кандидатов из v_deal_candidates, цену считает auto_offer_price, точку - из публикации или настроек; маршрутные сервисы пропускает (их ведет сервер).'),
-    ('deal_agree', 'Согласование отклика клиентом в одной транзакции (п. 4.4). Блокирует сделку, проверяет клиента, активность отклика и занятость поставщика; выбранный отклик - selected, остальные - declined; сделке поставщик, цена и статус AGREED; при исчерпании лимита снимает другие отклики поставщика на это время и уведомляет их клиентов.'),
+    ('deal_agree', 'Согласование отклика клиентом в одной транзакции (п. 4.4). Блокирует сделку, проверяет клиента, активность отклика и занятость поставщика; выбранный отклик - selected, остальные - declined с уведомлением OFFER_DECLINED их поставщикам; сделке поставщик, цена и статус AGREED; при исчерпании лимита снимает другие отклики поставщика на это время и уведомляет их клиентов.'),
     ('deal_other_side_late', 'Опаздывает ли другая сторона сделки (для бесплатной отмены, В-3). Период начался, а свежее положение другой стороны дальше near_radius_m от места встречи (точка отклика для place_mode = provider, иначе точка клиента).'),
     ('deal_cancel_mode', 'Каким будет итог отмены сделки агентом прямо сейчас (п. 5.2-5.4): CANCEL_FREE, CANCEL_CLIENT, CANCEL_PROVIDER или NULL - отменить нельзя. До согласования, в окне cancel_free_min до CONTACT или при опоздании другой стороны - бесплатно; иначе штраф стороне-инициатору. Одно правило для deal_cancel и предупреждения в приложении (GET /deals/{id}, поле cancel_mode).'),
     ('deal_cancel', 'Отмена сделки стороной; итоговый статус решает БД (п. 5.2-5.4). Итог берется из deal_cancel_mode (бесплатно или штраф инициатору), для отмен со штрафом причина обязательна; активные отклики истекают; отмена после CONTACT - эпизод фрода NEAR_CANCEL.'),
@@ -2470,6 +2475,7 @@ INSERT INTO g_src VALUES
 (30096,'NT_REVIEW_REQUIRED',18,'Поставьте баллы второй стороне','Rate the other side',NULL),
 (30097,'NT_EXPIRED',        NULL,'Сделка истекла без согласования','The deal expired without agreement',NULL),
 (30098,'NT_SANCTION',       32,'Санкция антифрод-системы','Anti-fraud sanction',NULL),
+(30099,'NT_OFFER_DECLINED', NULL,'Клиент выбрал другого поставщика','The client chose another provider',NULL),
 (30101,'CUR_CLIENT',        28,'Курсор клиента','Client cursor',NULL),
 (30102,'CUR_PROVIDER',      29,'Курсор поставщика','Provider cursor',NULL),
 (30103,'CUR_CLIENT_TEST',   30,'Курсор клиента (тест)','Client cursor (test)',NULL),
@@ -2665,7 +2671,9 @@ INSERT INTO g_src VALUES
 -- Э5 шаг 6: статусы публикации (provider_slot.slot_status) и форма
 (50139,'ui.slot_closed',       NULL,'Завершена','Ended',NULL),
 (50140,'ui.slot_cancelled',    NULL,'Снята','Withdrawn',NULL),
-(50141,'ui.route_preview',     NULL,'Линия маршрута построится по дорогам после публикации','The road route is built after publishing',NULL);
+(50141,'ui.route_preview',     NULL,'Линия маршрута построится по дорогам после публикации','The road route is built after publishing',NULL),
+-- Э5 шаг 8: отклик снят (offer_status = withdrawn / expired) - сделка открыта, но своего активного отклика нет
+(50142,'ui.offer_withdrawn',   NULL,'Отклик снят: время занято другой сделкой или истекло','Offer withdrawn: the time is taken by another deal or has expired',NULL);
 
 INSERT INTO glossary (glossary_id, glossary_code, icon_id) SELECT id, code, icon FROM g_src;
 INSERT INTO glossary_text (glossary_id, interface_lang_id, text_value, search_text)
@@ -2734,6 +2742,7 @@ INSERT INTO dictionary (dict_id, dict_type, dict_code, glossary_id, sort_order, 
 (96,'NOTIFY_TYPE','REVIEW_REQUIRED',30096,11,NULL,NULL,1),
 (97,'NOTIFY_TYPE','EXPIRED',        30097,12,NULL,NULL,1),
 (98,'NOTIFY_TYPE','SANCTION',       30098,13,NULL,NULL,1),
+(99,'NOTIFY_TYPE','OFFER_DECLINED', 30099,14,NULL,NULL,1),
 -- курсоры карты: роль x режим тестирования
 (101,'MAP_CURSOR','CLIENT',        30101,1,NULL,NULL,1),
 (102,'MAP_CURSOR','PROVIDER',      30102,2,NULL,NULL,1),

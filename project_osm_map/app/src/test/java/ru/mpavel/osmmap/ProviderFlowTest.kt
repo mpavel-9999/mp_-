@@ -8,11 +8,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import ru.mpavel.osmmap.core.net.decodeBody
 import ru.mpavel.osmmap.data.AttrValue
+import ru.mpavel.osmmap.data.Deal
 import ru.mpavel.osmmap.data.FormField
 import ru.mpavel.osmmap.data.IncomingRequest
 import ru.mpavel.osmmap.data.MyOffer
 import ru.mpavel.osmmap.data.MyService
+import ru.mpavel.osmmap.data.Offer
 import ru.mpavel.osmmap.data.Slot
+import ru.mpavel.osmmap.feature.deal.offererNoteKey
 import ru.mpavel.osmmap.feature.provider.OfferState
 import ru.mpavel.osmmap.feature.provider.SlotState
 import ru.mpavel.osmmap.feature.provider.buildOfferCreate
@@ -120,5 +123,20 @@ class ProviderFlowTest {
         assertNotNull(s.serviceName)
         assertNotNull(s.periodStart)
         assertTrue(s.slotStatus in setOf("active", "closed", "cancelled"))
+    }
+
+    @Test
+    fun offererNote() {
+        fun deal(status: String, role: String) = Deal(dealId = 6, serviceId = 1001, status = status, myRole = role)
+        val mine = listOf(Offer(dealOfferId = 1, dealId = 6, providerAgentId = 8, offerStatus = "active"))
+        // клиенту, кандидату и исполнителю пометки нет
+        assertNull(offererNoteKey(deal("OFFERS", "client"), mine))
+        assertNull(offererNoteKey(deal("OFFERS", "candidate"), emptyList()))
+        assertNull(offererNoteKey(deal("AGREED", "provider"), mine))
+        assertEquals("ui.waiting_client", offererNoteKey(deal("OFFERS", "offerer"), mine))
+        // отклик снят (withdrawn / expired) - в списке поставщика его нет
+        assertEquals("ui.offer_withdrawn", offererNoteKey(deal("OFFERS", "offerer"), emptyList()))
+        // согласовали с другим
+        assertEquals("ui.offer_declined", offererNoteKey(deal("AGREED", "offerer"), emptyList()))
     }
 }

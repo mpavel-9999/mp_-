@@ -183,7 +183,7 @@ fun requestClient(r: IncomingRequest): String = listOfNotNull(
     r.offersActive.takeIf { it > 0 }?.let { t("ui.offers_count", "n" to it) },
 ).joinToString(" · ")
 
-/** Кнопки: "Откликнуться" / "Пропустить"; после отклика - "Отклик отправлен" и цена. */
+/** Кнопки: "Откликнуться" / "Пропустить" / "Сделка"; после отклика - "Отклик отправлен" и цена. */
 @Composable
 fun RequestActionsRow(r: IncomingRequest, actions: IncomingActions, dense: Boolean = false) {
     val mine = r.myOffer
@@ -206,6 +206,8 @@ fun RequestActionsRow(r: IncomingRequest, actions: IncomingActions, dense: Boole
                 Text(t("ui.skip"))
             }
         }
+        // подробно - экран сделки в роли кандидата (поля запроса, клиент, тот же отклик)
+        TextButton(onClick = { actions.nav.deal(r.dealId) }, modifier = Modifier.heightIn(min = 48.dp)) { Text(t("ui.deal")) }
     }
 }
 
