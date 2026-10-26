@@ -80,8 +80,14 @@ class CloseConfirmViewModel(
     init {
         center.fast(true)
         load()
-        // сближение (NEAR) открывает ввод кода, закрытие поставщиком невозможно - достаточно перечитать сделку
-        viewModelScope.launch { center.events.filter { it.dealId == dealId }.collect { load() } }
+        // сближение (NEAR) открывает ввод кода - перечитать сделку; "Предоставить QR" (CLOSE_CODE) - подставить код,
+        // даже если экран уже открыт (переход на тот же экран его не пересоздаёт)
+        viewModelScope.launch {
+            center.events.filter { it.dealId == dealId }.collect { n ->
+                closeCodeFrom(n)?.let(::setCode)
+                load()
+            }
+        }
     }
 
     override fun onCleared() {

@@ -299,7 +299,7 @@ final class DealApi {
         + "      CASE WHEN x.my_role = 'client' AND x.me_testing AND (x.status = 'CONTACT'"
         + "           OR (x.status = 'AGREED' AND x.place_mode = 'online')) THEN 'test_scan' END,"
         + "      CASE WHEN x.my_role = 'provider' AND x.me_testing AND x.status IN ('AGREED','CONTACT') THEN 'test_provide' END,"
-        + "      CASE WHEN x.my_role IN ('client','provider') AND x.status IN ('AGREED','CONTACT') THEN 'route' END,"
+        + "      CASE WHEN x.my_role IN ('client','provider') AND x.status IN ('AGREED','CONTACT') AND x.place_mode <> 'online' THEN 'route' END,"
         + "      CASE WHEN x.can_offer THEN 'offer' END,"
         + "      CASE WHEN x.review_pending THEN 'review' END], NULL)"
         + " ) FROM x";

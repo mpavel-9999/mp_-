@@ -1120,6 +1120,7 @@ components:
           items:
             type: string
             enum: [agree, cancel, close, show_code, enter_code, test_scan, test_provide, route, offer, review]
+          description: Допустимые действия - решает сервер; `route` - только гео-услугам (у онлайн-услуги маршрута нет, Э6)
     Offer:
       type: object
       description: Строка v_deal_offer_list

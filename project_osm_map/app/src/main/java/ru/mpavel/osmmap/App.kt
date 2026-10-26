@@ -262,10 +262,12 @@ private fun MainNav(graph: AppGraph, roles: List<String>, onLogout: () -> Unit) 
                 }
             }
             launch {
+                // "Услуга оказана?" (п. 5.5): кнопка сразу называет действие, снекбар висит дольше (не бессрочно - очередь)
+                val ask = n.type == "CLOSING_ASK"
                 val result = snackbar.showSnackbar(
                     message = n.text ?: texts.notification(n.type),
-                    actionLabel = n.dealId?.let { texts.t("ui.deal") },
-                    duration = SnackbarDuration.Short,
+                    actionLabel = n.dealId?.let { texts.t(if (ask) "ui.close_deal" else "ui.deal") },
+                    duration = if (ask) SnackbarDuration.Long else SnackbarDuration.Short,
                 )
                 graph.notifyCenter.markRead(n.notificationId)
                 if (result == SnackbarResult.ActionPerformed) n.dealId?.let { nav.deal(it) }

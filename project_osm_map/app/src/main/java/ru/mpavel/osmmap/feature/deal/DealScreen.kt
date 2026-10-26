@@ -299,7 +299,8 @@ fun StatusChip(code: String, text: String) {
 @Composable
 fun StatusTimeline(deal: Deal, horizontal: Boolean = false) {
     val texts = LocalTexts.current
-    val stages = listOf("MATCHING", "OFFERS", "AGREED", "CONTACT", "CLOSED")
+    // онлайн-услуга закрывается из AGREED: этапа "Контакт" у неё нет (алгоритм, раздел 2)
+    val stages = listOf("MATCHING", "OFFERS", "AGREED", "CONTACT", "CLOSED").filter { it != "CONTACT" || deal.placeMode != "online" }
     val current = stages.indexOf(deal.status).let { if (it < 0) stages.indexOf(lastReached(deal)) else it }
     val items: @Composable (Int, String) -> Unit = { i, code ->
         val done = i <= current
@@ -342,7 +343,7 @@ fun PartyBlock(deal: Deal) {
                      fontFamily = Mp.fonts.mono, color = Mp.colors.textMuted)
             }
             FieldList(deal.counterpartFields)
-            if (deal.status == "AGREED" && (deal.myRole == "client" || deal.myRole == "provider")) {
+            if (deal.status == "AGREED" && deal.placeMode != "online" && (deal.myRole == "client" || deal.myRole == "provider")) {
                 Text(t("ui.contacts_near"), style = MaterialTheme.typography.bodySmall, color = Mp.colors.textMuted)
             }
         }
