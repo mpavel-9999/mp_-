@@ -6,6 +6,10 @@
 --   psql ... -f db/load/mp_load.sql
 --   SELECT mp_load.generate();            -- 100 000 агентов, 1 млн сделок (≈ 10-20 мин)
 --   SELECT * FROM mp_load.check();        -- целостность: все violations = 0
+--   SELECT * FROM mp_load.bench('before', 30, 1, ARRAY['Q1','Q2','Q5']);  -- замер, результат в bench_result
+--   SELECT mp_load.explain('Q5');         -- план EXPLAIN (ANALYZE, BUFFERS)
+--   SELECT mp_load.http_params();         -- параметры для server/tests/load_http.py
+-- Q3 (подбор) и Q4 (новый запрос) на стенде идут десятки секунд и минуты - замерять по одному вызову.
 -- Убрать стенд - перезагрузить db/mp_service.sql.
 -- =====================================================================
 

@@ -1,0 +1,36 @@
+Aggregate  (cost=43.58..43.60 rows=1 width=32) (actual time=16.529..16.533 rows=1 loops=1)
+  Buffers: shared hit=1143 read=59
+  ->  Nested Loop  (cost=28.25..43.33 rows=1 width=309) (actual time=11.552..15.629 rows=4 loops=1)
+        Buffers: shared hit=1107 read=59
+        ->  WindowAgg  (cost=27.95..35.01 rows=1 width=411) (actual time=11.515..15.515 rows=4 loops=1)
+              Buffers: shared hit=1103 read=51
+              ->  Sort  (cost=27.95..27.96 rows=1 width=229) (actual time=7.939..7.943 rows=4 loops=1)
+                    Sort Key: (offer_sort_key(get_setting(d.service_id, 'offer_sort_1'::text, NULL::numeric), round((('12742000'::double precision * asin(sqrt((power(sin((radians(((o.geo_lat - d.geo_lat))::double precision) / '2'::double precision)), '2'::double precision) + ((cos(radians((d.geo_lat)::double precision)) * cos(radians((o.geo_lat)::double precision))) * power(sin((radians(((o.geo_lon - d.geo_lon))::double precision) / '2'::double precision)), '2'::double precision)))))))::numeric, 1), agent_rating(o.provider_agent_id, 'PROVIDER'::text, d.service_id, (d.date_creation)::date), o.offer_price)), (offer_sort_key(get_setting(d.service_id, 'offer_sort_2'::text, NULL::numeric), round((('12742000'::double precision * asin(sqrt((power(sin((radians(((o.geo_lat - d.geo_lat))::double precision) / '2'::double precision)), '2'::double precision) + ((cos(radians((d.geo_lat)::double precision)) * cos(radians((o.geo_lat)::double precision))) * power(sin((radians(((o.geo_lon - d.geo_lon))::double precision) / '2'::double precision)), '2'::double precision)))))))::numeric, 1), agent_rating(o.provider_agent_id, 'PROVIDER'::text, d.service_id, (d.date_creation)::date), o.offer_price)), (offer_sort_key(get_setting(d.service_id, 'offer_sort_3'::text, NULL::numeric), round((('12742000'::double precision * asin(sqrt((power(sin((radians(((o.geo_lat - d.geo_lat))::double precision) / '2'::double precision)), '2'::double precision) + ((cos(radians((d.geo_lat)::double precision)) * cos(radians((o.geo_lat)::double precision))) * power(sin((radians(((o.geo_lon - d.geo_lon))::double precision) / '2'::double precision)), '2'::double precision)))))))::numeric, 1), agent_rating(o.provider_agent_id, 'PROVIDER'::text, d.service_id, (d.date_creation)::date), o.offer_price)), o.date_creation, o.deal_offer_id
+                    Sort Method: quicksort  Memory: 25kB
+                    Buffers: shared hit=668 read=36
+                    ->  Nested Loop  (cost=9.93..27.94 rows=1 width=229) (actual time=5.446..7.921 rows=4 loops=1)
+                          Join Filter: ((round((('12742000'::double precision * asin(sqrt((power(sin((radians(((o.geo_lat - d.geo_lat))::double precision) / '2'::double precision)), '2'::double precision) + ((cos(radians((d.geo_lat)::double precision)) * cos(radians((o.geo_lat)::double precision))) * power(sin((radians(((o.geo_lon - d.geo_lon))::double precision) / '2'::double precision)), '2'::double precision)))))))::numeric, 1) IS NULL) OR (round((('12742000'::double precision * asin(sqrt((power(sin((radians(((o.geo_lat - d.geo_lat))::double precision) / '2'::double precision)), '2'::double precision) + ((cos(radians((d.geo_lat)::double precision)) * cos(radians((o.geo_lat)::double precision))) * power(sin((radians(((o.geo_lon - d.geo_lon))::double precision) / '2'::double precision)), '2'::double precision)))))))::numeric, 1) <= d.zone_radius_m) OR (get_setting(d.service_id, 'geo_mode'::text, NULL::numeric) = ANY ('{route,none}'::text[])))
+                          Buffers: shared hit=665 read=36
+                          ->  Merge Join  (cost=9.50..11.34 rows=1 width=51) (actual time=0.037..0.041 rows=1 loops=1)
+                                Merge Cond: (ds.dict_id = d.deal_status_id)
+                                Buffers: shared hit=5 read=1
+                                ->  Index Scan using dictionary_pkey on dictionary ds  (cost=0.14..14.47 rows=80 width=16) (actual time=0.013..0.014 rows=9 loops=1)
+                                      Buffers: shared hit=1 read=1
+                                ->  Sort  (cost=8.45..8.46 rows=1 width=45) (actual time=0.020..0.021 rows=1 loops=1)
+                                      Sort Key: d.deal_status_id
+                                      Sort Method: quicksort  Memory: 25kB
+                                      Buffers: shared hit=4
+                                      ->  Index Scan using deal_pkey on deal d  (cost=0.42..8.44 rows=1 width=45) (actual time=0.013..0.014 rows=1 loops=1)
+                                            Index Cond: (deal_id = '1999701'::numeric)
+                                            Buffers: shared hit=4
+                          ->  Index Scan using deal_offer_deal_id_provider_agent_id_key on deal_offer o  (cost=0.43..13.76 rows=1 width=93) (actual time=0.035..0.047 rows=4 loops=1)
+                                Index Cond: (deal_id = '1999701'::numeric)
+                                Filter: (offer_status = ANY ('{active,selected}'::text[]))
+                                Buffers: shared read=5
+        ->  Index Scan using agent_pkey on agent a  (cost=0.29..8.31 rows=1 width=8) (actual time=0.026..0.026 rows=1 loops=4)
+              Index Cond: (agent_id = o.provider_agent_id)
+              Buffers: shared hit=4 read=8
+Planning:
+  Buffers: shared hit=510 read=42
+Planning Time: 3.717 ms
+Execution Time: 17.058 ms

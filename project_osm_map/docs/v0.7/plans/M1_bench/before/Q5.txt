@@ -1,0 +1,40 @@
+Aggregate  (cost=8550563.29..8550563.31 rows=1 width=32) (actual time=271.877..271.880 rows=1 loops=1)
+  Buffers: shared hit=15721 read=16855
+  ->  Nested Loop  (cost=3.95..8549420.96 rows=456934 width=0) (actual time=159.013..271.863 rows=3 loops=1)
+        Buffers: shared hit=15721 read=16855
+        ->  Hash Join  (cost=3.80..8538174.57 rows=456934 width=5) (actual time=158.974..271.800 rows=3 loops=1)
+              Hash Cond: (d.deal_status_id = st.dict_id)
+              Join Filter: ((st.dict_code <> ALL ('{CLOSED,CANCEL_FREE,CANCEL_CLIENT,CANCEL_PROVIDER,EXPIRED,NOT_CLOSED}'::text[])) OR ((d.provider_agent_id IS NOT NULL) AND (st.dict_code = ANY ('{CLOSED,CANCEL_CLIENT,CANCEL_PROVIDER}'::text[])) AND (NOT (ANY (d.deal_id = (hashed SubPlan 4).col1)))))
+              Rows Removed by Join Filter: 14
+              Buffers: shared hit=15715 read=16855
+              ->  Seq Scan on deal d  (cost=0.00..8488478.27 rows=500029 width=22) (actual time=26.149..154.497 rows=17 loops=1)
+                    Filter: ((client_agent_id = '1006365'::numeric) OR (provider_agent_id = '1006365'::numeric) OR (ANY (deal_id = (hashed SubPlan 2).col1)))
+                    Rows Removed by Filter: 999990
+                    Buffers: shared hit=15675 read=5247
+                    SubPlan 2
+                      ->  Index Scan using ix_deal_offer_provider on deal_offer o  (cost=0.43..8.45 rows=1 width=6) (actual time=0.035..0.036 rows=0 loops=1)
+                            Index Cond: ((provider_agent_id = '1006365'::numeric) AND (offer_status = 'active'::text))
+                            Buffers: shared read=3
+              ->  Hash  (cost=2.80..2.80 rows=80 width=16) (actual time=0.044..0.044 rows=80 loops=1)
+                    Buckets: 1024  Batches: 1  Memory Usage: 12kB
+                    Buffers: shared hit=2
+                    ->  Seq Scan on dictionary st  (cost=0.00..2.80 rows=80 width=16) (actual time=0.018..0.026 rows=80 loops=1)
+                          Buffers: shared hit=2
+              SubPlan 4
+                ->  Seq Scan on deal_review rv  (cost=0.00..29113.81 rows=20 width=6) (actual time=16.296..117.160 rows=11 loops=1)
+                      Filter: (from_agent_id = '1006365'::numeric)
+                      Rows Removed by Filter: 1397414
+                      Buffers: shared hit=38 read=11608
+        ->  Memoize  (cost=0.15..0.17 rows=1 width=5) (actual time=0.017..0.017 rows=1 loops=3)
+              Cache Key: d.service_id
+              Cache Mode: logical
+              Hits: 0  Misses: 3  Evictions: 0  Overflows: 0  Memory Usage: 1kB
+              Buffers: shared hit=6
+              ->  Index Only Scan using service_pkey on service s  (cost=0.14..0.16 rows=1 width=5) (actual time=0.012..0.012 rows=1 loops=3)
+                    Index Cond: (service_id = d.service_id)
+                    Heap Fetches: 3
+                    Buffers: shared hit=6
+Planning:
+  Buffers: shared hit=255 read=9
+Planning Time: 3.217 ms
+Execution Time: 272.034 ms

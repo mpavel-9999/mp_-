@@ -1,0 +1,21 @@
+Aggregate  (cost=36905.49..36905.51 rows=1 width=32) (actual time=2803.963..2803.964 rows=1 loops=1)
+  Buffers: shared hit=137166 read=6954
+  ->  Nested Loop  (cost=20570.75..36905.43 rows=5 width=446) (actual time=56.024..2803.917 rows=19 loops=1)
+        Buffers: shared hit=137166 read=6954
+        ->  Bitmap Heap Scan on provider_slot ps  (cost=20570.46..36883.88 rows=5 width=7) (actual time=56.011..2803.506 rows=19 loops=1)
+              Recheck Cond: (slot_status = 'active'::text)
+              Filter: ((agent_id <> '1006365'::numeric) AND (period_end > now()) AND (round((('12742000'::double precision * asin(sqrt((power(sin((radians(((CASE WHEN (COALESCE((get_setting(service_id, 'approx_offset_m'::text, agent_rating(agent_id, 'PROVIDER'::text, service_id, CURRENT_DATE)))::numeric, '0'::numeric) = '0'::numeric) THEN geo_lat ELSE round((((geo_lat)::double precision + (((COALESCE((get_setting(service_id, 'approx_offset_m'::text, agent_rating(agent_id, 'PROVIDER'::text, service_id, CURRENT_DATE)))::numeric, '0'::numeric))::double precision * cos(radians(((((('x'::text || substr(md5((('slot'::text || (slot_id)::text) || COALESCE(current_setting('mp.geo_secret'::text, true), ''::text))), 1, 6)))::bit(24))::integer % 360))::double precision))) / '111195'::double precision)))::numeric, 6) END - 43.24))::double precision) / '2'::double precision)), '2'::double precision) + (('0.7284905457796674'::double precision * cos(radians((CASE WHEN (COALESCE((get_setting(service_id, 'approx_offset_m'::text, agent_rating(agent_id, 'PROVIDER'::text, service_id, CURRENT_DATE)))::numeric, '0'::numeric) = '0'::numeric) THEN geo_lat ELSE round((((geo_lat)::double precision + (((COALESCE((get_setting(service_id, 'approx_offset_m'::text, agent_rating(agent_id, 'PROVIDER'::text, service_id, CURRENT_DATE)))::numeric, '0'::numeric))::double precision * cos(radians(((((('x'::text || substr(md5((('slot'::text || (slot_id)::text) || COALESCE(current_setting('mp.geo_secret'::text, true), ''::text))), 1, 6)))::bit(24))::integer % 360))::double precision))) / '111195'::double precision)))::numeric, 6) END)::double precision))) * power(sin((radians(((CASE WHEN (COALESCE((get_setting(service_id, 'approx_offset_m'::text, agent_rating(agent_id, 'PROVIDER'::text, service_id, CURRENT_DATE)))::numeric, '0'::numeric) = '0'::numeric) THEN geo_lon ELSE round((((geo_lon)::double precision + (((COALESCE((get_setting(service_id, 'approx_offset_m'::text, agent_rating(agent_id, 'PROVIDER'::text, service_id, CURRENT_DATE)))::numeric, '0'::numeric))::double precision * sin(radians(((((('x'::text || substr(md5((('slot'::text || (slot_id)::text) || COALESCE(current_setting('mp.geo_secret'::text, true), ''::text))), 1, 6)))::bit(24))::integer % 360))::double precision))) / ('111195'::double precision * cos(radians((geo_lat)::double precision))))))::numeric, 6) END - 76.89))::double precision) / '2'::double precision)), '2'::double precision)))))))::numeric, 1) <= '1000'::numeric))
+              Rows Removed by Filter: 2986
+              Heap Blocks: exact=53
+              Buffers: shared hit=137138 read=6943
+              ->  Bitmap Index Scan on ix_provider_slot_search  (cost=0.00..20570.46 rows=3083 width=0) (actual time=45.931..45.931 rows=3005 loops=1)
+                    Index Cond: (slot_status = 'active'::text)
+                    Buffers: shared read=4174
+        ->  Index Only Scan using agent_pkey on agent a  (cost=0.29..4.31 rows=1 width=6) (actual time=0.018..0.018 rows=1 loops=19)
+              Index Cond: (agent_id = ps.agent_id)
+              Heap Fetches: 0
+              Buffers: shared hit=28 read=11
+Planning:
+  Buffers: shared hit=333 read=8
+Planning Time: 1.869 ms
+Execution Time: 2804.217 ms

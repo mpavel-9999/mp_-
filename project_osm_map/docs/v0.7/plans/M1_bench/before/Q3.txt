@@ -1,0 +1,52 @@
+Aggregate  (cost=54992.88..54992.89 rows=1 width=32) (actual time=23171.903..23171.906 rows=1 loops=1)
+  Buffers: shared hit=2333998 read=1253066 written=184
+  ->  Nested Loop  (cost=433.92..54930.70 rows=24872 width=0) (actual time=23171.901..23171.904 rows=0 loops=1)
+        Buffers: shared hit=2333998 read=1253066 written=184
+        ->  Hash Anti Join  (cost=433.67..54433.01 rows=24872 width=12) (actual time=3.360..192.530 rows=169 loops=1)
+              Hash Cond: (d_1.deal_id = o.deal_id)
+              Buffers: shared hit=13351 read=10146
+              ->  Nested Loop  (cost=4.37..53689.68 rows=24875 width=12) (actual time=2.471..191.400 rows=169 loops=1)
+                    Buffers: shared hit=13350 read=10048
+                    ->  Limit  (cost=0.92..13.37 rows=1 width=6) (actual time=0.169..0.170 rows=1 loops=1)
+                          Buffers: shared hit=4 read=4
+                          ->  Index Scan using agent_role_pkey on agent_role ar  (cost=0.92..13.37 rows=1 width=6) (actual time=0.168..0.168 rows=1 loops=1)
+                                Index Cond: ((agent_id = '1000004'::numeric) AND (role_id = ANY (ARRAY[dict_id('ROLE'::text, 'PROVIDER'::text), dict_id('ROLE'::text, 'SUBAGENT'::text)])))
+                                Filter: (is_active = 1)
+                                Buffers: shared hit=4 read=4
+                    ->  Nested Loop  (cost=3.45..53427.56 rows=24875 width=6) (actual time=2.300..191.075 rows=169 loops=1)
+                          Buffers: shared hit=13346 read=10044
+                          ->  Hash Join  (cost=3.02..33686.18 rows=25000 width=6) (actual time=0.037..154.507 rows=302 loops=1)
+                                Hash Cond: (d_1.deal_status_id = s.dict_id)
+                                Buffers: shared hit=10886 read=10035
+                                ->  Seq Scan on deal d_1  (cost=0.00..30919.07 rows=1000007 width=11) (actual time=0.011..78.470 rows=1000007 loops=1)
+                                      Buffers: shared hit=10884 read=10035
+                                ->  Hash  (cost=3.00..3.00 rows=2 width=5) (actual time=0.015..0.016 rows=2 loops=1)
+                                      Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                      Buffers: shared hit=2
+                                      ->  Seq Scan on dictionary s  (cost=0.00..3.00 rows=2 width=5) (actual time=0.004..0.012 rows=2 loops=1)
+                                            Filter: (dict_code = ANY ('{MATCHING,OFFERS}'::text[]))
+                                            Rows Removed by Filter: 78
+                                            Buffers: shared hit=2
+                          ->  Index Scan using deal_pkey on deal d  (cost=0.42..0.79 rows=1 width=6) (actual time=0.119..0.119 rows=1 loops=302)
+                                Index Cond: (deal_id = d_1.deal_id)
+                                Filter: (get_setting(service_id, 'geo_mode'::text, NULL::numeric) <> 'route'::text)
+                                Rows Removed by Filter: 0
+                                Buffers: shared hit=2460 read=9
+              ->  Hash  (cost=427.92..427.92 rows=110 width=12) (actual time=0.885..0.886 rows=96 loops=1)
+                    Buckets: 1024  Batches: 1  Memory Usage: 13kB
+                    Buffers: shared hit=1 read=98
+                    ->  Bitmap Heap Scan on deal_offer o  (cost=5.28..427.92 rows=110 width=12) (actual time=0.066..0.872 rows=96 loops=1)
+                          Recheck Cond: (provider_agent_id = '1000004'::numeric)
+                          Heap Blocks: exact=96
+                          Buffers: shared hit=1 read=98
+                          ->  Bitmap Index Scan on ix_deal_offer_provider  (cost=0.00..5.25 rows=110 width=0) (actual time=0.042..0.042 rows=96 loops=1)
+                                Index Cond: (provider_agent_id = '1000004'::numeric)
+                                Buffers: shared read=3
+        ->  Function Scan on provider_can_offer c  (cost=0.25..0.26 rows=1 width=0) (actual time=135.971..135.971 rows=0 loops=169)
+              Filter: ok
+              Rows Removed by Filter: 1
+              Buffers: shared hit=2320647 read=1242920 written=184
+Planning:
+  Buffers: shared hit=383 read=16
+Planning Time: 5.078 ms
+Execution Time: 23172.054 ms

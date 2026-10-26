@@ -1,0 +1,35 @@
+Aggregate  (cost=19.55..19.57 rows=1 width=32) (actual time=0.211..0.212 rows=1 loops=1)
+  Buffers: shared hit=33 read=3
+  ->  Subquery Scan on x  (cost=19.52..19.54 rows=2 width=99) (actual time=0.176..0.179 rows=4 loops=1)
+        Buffers: shared hit=33 read=3
+        ->  Limit  (cost=19.52..19.52 rows=2 width=101) (actual time=0.166..0.167 rows=4 loops=1)
+              Buffers: shared hit=33 read=3
+              ->  Sort  (cost=19.52..19.52 rows=2 width=101) (actual time=0.165..0.166 rows=4 loops=1)
+                    Sort Key: n.notification_id
+                    Sort Method: quicksort  Memory: 25kB
+                    Buffers: shared hit=33 read=3
+                    ->  Nested Loop Left Join  (cost=13.05..19.51 rows=2 width=101) (actual time=0.132..0.149 rows=4 loops=1)
+                          Buffers: shared hit=30 read=3
+                          ->  Nested Loop  (cost=12.77..17.61 rows=2 width=100) (actual time=0.125..0.139 rows=4 loops=1)
+                                Buffers: shared hit=18 read=3
+                                ->  Hash Join  (cost=12.50..15.72 rows=2 width=76) (actual time=0.101..0.110 rows=4 loops=1)
+                                      Hash Cond: (t.dict_id = n.notify_type_id)
+                                      Buffers: shared hit=7 read=2
+                                      ->  Seq Scan on dictionary t  (cost=0.00..2.80 rows=80 width=23) (actual time=0.009..0.014 rows=80 loops=1)
+                                            Buffers: shared hit=2
+                                      ->  Hash  (cost=12.47..12.47 rows=2 width=63) (actual time=0.081..0.082 rows=4 loops=1)
+                                            Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                            Buffers: shared hit=5 read=2
+                                            ->  Index Scan using ix_notification_agent on notification n  (cost=0.43..12.47 rows=2 width=63) (actual time=0.066..0.077 rows=4 loops=1)
+                                                  Index Cond: ((agent_id = '1096986'::numeric) AND (notification_id > '9997420'::numeric))
+                                                  Buffers: shared hit=5 read=2
+                                ->  Index Scan using glossary_text_pkey on glossary_text tr  (cost=0.28..0.94 rows=1 width=31) (actual time=0.006..0.006 rows=1 loops=4)
+                                      Index Cond: ((glossary_id = t.glossary_id) AND (interface_lang_id = '1'::numeric))
+                                      Buffers: shared hit=11 read=1
+                          ->  Index Scan using glossary_text_pkey on glossary_text tl  (cost=0.28..0.94 rows=1 width=31) (actual time=0.002..0.002 rows=1 loops=4)
+                                Index Cond: ((glossary_id = t.glossary_id) AND (interface_lang_id = '1'::numeric))
+                                Buffers: shared hit=12
+Planning:
+  Buffers: shared hit=178
+Planning Time: 2.191 ms
+Execution Time: 0.293 ms

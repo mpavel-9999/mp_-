@@ -1,0 +1,20 @@
+Index Scan using deal_pkey on deal d  (cost=0.42..1185792.30 rows=1 width=32) (actual time=420.130..420.133 rows=1 loops=1)
+  Index Cond: (deal_id = '1997701'::numeric)
+  Buffers: shared hit=396 read=34627
+  SubPlan 3
+    ->  Result  (cost=8.71..8.72 rows=1 width=32) (actual time=0.001..0.002 rows=1 loops=1)
+          InitPlan 1
+            ->  Index Only Scan using deal_offer_deal_id_provider_agent_id_key on deal_offer o  (cost=0.43..8.45 rows=1 width=0) (never executed)
+                  Index Cond: ((deal_id = d.deal_id) AND (provider_agent_id = '1088838'::numeric))
+                  Heap Fetches: 0
+          InitPlan 2
+            ->  Function Scan on provider_can_offer  (cost=0.25..0.26 rows=1 width=1) (never executed)
+  SubPlan 4
+    ->  Seq Scan on deal_status_log l  (cost=0.00..1185774.88 rows=1 width=0) (actual time=408.075..408.075 rows=1 loops=1)
+          Filter: ((deal_id = d.deal_id) AND (deal_status_id = dict_id('DEAL_STATUS'::text, 'CONTACT'::text)))
+          Rows Removed by Filter: 4336958
+          Buffers: shared hit=8 read=34607
+Planning:
+  Buffers: shared hit=174 read=12
+Planning Time: 3.579 ms
+Execution Time: 420.269 ms

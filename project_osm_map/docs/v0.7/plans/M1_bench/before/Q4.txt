@@ -1,0 +1,18 @@
+Insert on deal  (cost=0.00..0.53 rows=1 width=524) (actual time=2.594..2.595 rows=1 loops=1)
+  Buffers: shared hit=225 read=38 dirtied=4 written=2
+  ->  Result  (cost=0.00..0.53 rows=1 width=524) (actual time=1.593..1.593 rows=1 loops=1)
+        Buffers: shared hit=79 read=21 dirtied=1 written=2
+Planning:
+  Buffers: shared hit=5 read=1 written=1
+Planning Time: 0.042 ms
+Trigger for constraint deal_service_id_fkey: time=0.801 calls=1
+Trigger for constraint deal_client_agent_id_fkey: time=5.451 calls=1
+Trigger for constraint deal_provider_agent_id_fkey: time=0.017 calls=1
+Trigger for constraint deal_slot_id_fkey: time=0.069 calls=1
+Trigger for constraint deal_deal_status_id_fkey: time=0.094 calls=1
+Trigger for constraint deal_payment_method_id_fkey: time=0.051 calls=1
+Trigger trg_deal_dict: time=0.399 calls=1
+Trigger trg_deal_period: time=0.183 calls=1
+Trigger trg_deal_status: time=0.203 calls=1
+Trigger trg_deal_status_after: time=2.012 calls=1
+Execution Time: 11.111 ms

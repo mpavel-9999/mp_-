@@ -1,0 +1,20 @@
+Result  (cost=0.05..0.32 rows=1 width=32) (actual time=18.723..18.725 rows=1 loops=1)
+  Buffers: shared hit=2087 read=36 dirtied=5
+  CTE u
+    ->  Insert on agent_position  (cost=0.00..0.01 rows=1 width=132) (actual time=15.396..15.398 rows=1 loops=1)
+          Conflict Resolution: UPDATE
+          Conflict Arbiter Indexes: agent_position_pkey
+          Tuples Inserted: 0
+          Conflicting Tuples: 1
+          Buffers: shared hit=60 read=18 dirtied=5
+          ->  Result  (cost=0.00..0.01 rows=1 width=132) (actual time=0.006..0.006 rows=1 loops=1)
+  InitPlan 2
+    ->  Aggregate  (cost=0.02..0.03 rows=1 width=8) (actual time=15.409..15.410 rows=1 loops=1)
+          Buffers: shared hit=60 read=18 dirtied=5
+          ->  CTE Scan on u  (cost=0.00..0.02 rows=1 width=0) (actual time=15.400..15.402 rows=1 loops=1)
+                Buffers: shared hit=60 read=18 dirtied=5
+Planning:
+  Buffers: shared hit=36 read=3
+Planning Time: 0.096 ms
+Trigger trg_agent_position: time=2.323 calls=2
+Execution Time: 18.800 ms

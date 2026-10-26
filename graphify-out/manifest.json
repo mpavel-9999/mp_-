@@ -1,9 +1,9 @@
 {
   "CLAUDE.md": {
-    "mtime": 1793010605.8235905,
-    "seen": 1793010916.8715048,
-    "ast_hash": "51f7007fa090ddfc346738bab76aad03",
-    "semantic_hash": "51f7007fa090ddfc346738bab76aad03"
+    "mtime": 1793016586.4794009,
+    "seen": 1793016655.6837425,
+    "ast_hash": "31a65fb045170cb63e75f15ecbf47423",
+    "semantic_hash": "31a65fb045170cb63e75f15ecbf47423"
   },
   "project_osm_map/app/build.gradle.kts": {
     "mtime": 1793004140.56554,
@@ -600,15 +600,87 @@
     "semantic_hash": "de97550cd4bfe7d8dfad71b583165678"
   },
   "project_osm_map/docs/v0.7/05_db_scaling.md": {
-    "mtime": 1793003323.1163952,
-    "seen": 1793010916.8715048,
-    "ast_hash": "b82ec19023028725b8ebcb0b09a1c973",
-    "semantic_hash": "b82ec19023028725b8ebcb0b09a1c973"
+    "mtime": 1793016598.1677897,
+    "seen": 1793016655.6837425,
+    "ast_hash": "6ddab1aefdb73ca2102ac7134e75db6c",
+    "semantic_hash": "6ddab1aefdb73ca2102ac7134e75db6c"
   },
   "project_osm_map/docs/v0.7/plans/E6_close.md": {
     "mtime": 1793010588.8298955,
     "seen": 1793010916.8715048,
     "ast_hash": "0be49cbf58c9a90cb7f4a789c7e54bdb",
     "semantic_hash": "0be49cbf58c9a90cb7f4a789c7e54bdb"
+  },
+  "project_osm_map/db/load/mp_load.sql": {
+    "mtime": 1793016530.6651907,
+    "seen": 1793016655.6837425,
+    "ast_hash": "116b89adaafb6041fea6bf8a661c2487",
+    "semantic_hash": "116b89adaafb6041fea6bf8a661c2487"
+  },
+  "project_osm_map/server/tests/load_http.py": {
+    "mtime": 1793012056.8192942,
+    "seen": 1793016655.6837425,
+    "ast_hash": "3db6f770a00a4d27c62157086a1b50e0",
+    "semantic_hash": "3db6f770a00a4d27c62157086a1b50e0"
+  },
+  "project_osm_map/docs/v0.7/plans/M1_bench/before/Q1.txt": {
+    "mtime": 1793012176.5296896,
+    "seen": 1793016655.6837425,
+    "ast_hash": "9e026b4812c2dfa32e84b040ed09c6b9",
+    "semantic_hash": "9e026b4812c2dfa32e84b040ed09c6b9"
+  },
+  "project_osm_map/docs/v0.7/plans/M1_bench/before/Q2.txt": {
+    "mtime": 1793012176.921886,
+    "seen": 1793016655.6837425,
+    "ast_hash": "90b808a76c4f5258caac0b4cfcd22a65",
+    "semantic_hash": "90b808a76c4f5258caac0b4cfcd22a65"
+  },
+  "project_osm_map/docs/v0.7/plans/M1_bench/before/Q3.txt": {
+    "mtime": 1793012200.1857493,
+    "seen": 1793016655.6837425,
+    "ast_hash": "8e29a8d59425fb6d3c1657291a46c67c",
+    "semantic_hash": "8e29a8d59425fb6d3c1657291a46c67c"
+  },
+  "project_osm_map/docs/v0.7/plans/M1_bench/before/Q4.txt": {
+    "mtime": 1793012200.2926807,
+    "seen": 1793016655.6837425,
+    "ast_hash": "53cdfeb8ddf5f3ad71758cdaf0c59d3d",
+    "semantic_hash": "53cdfeb8ddf5f3ad71758cdaf0c59d3d"
+  },
+  "project_osm_map/docs/v0.7/plans/M1_bench/before/Q5.txt": {
+    "mtime": 1793012200.644289,
+    "seen": 1793016655.6837425,
+    "ast_hash": "ef457e0af7be73350fc7878aebbb8981",
+    "semantic_hash": "ef457e0af7be73350fc7878aebbb8981"
+  },
+  "project_osm_map/docs/v0.7/plans/M1_bench/before/Q6.txt": {
+    "mtime": 1793012201.4264605,
+    "seen": 1793016655.6837425,
+    "ast_hash": "a0b6b61de345f22d794fd921e889efa0",
+    "semantic_hash": "a0b6b61de345f22d794fd921e889efa0"
+  },
+  "project_osm_map/docs/v0.7/plans/M1_bench/before/Q7.txt": {
+    "mtime": 1793012201.7794375,
+    "seen": 1793016655.6837425,
+    "ast_hash": "ead3c5472109b78423de361e77d16746",
+    "semantic_hash": "ead3c5472109b78423de361e77d16746"
+  },
+  "project_osm_map/docs/v0.7/plans/M1_bench/before/Q8.txt": {
+    "mtime": 1793012204.6711135,
+    "seen": 1793016655.6837425,
+    "ast_hash": "faf37f77644f6c0ad04fe95caa128cc9",
+    "semantic_hash": "faf37f77644f6c0ad04fe95caa128cc9"
+  },
+  "project_osm_map/docs/v0.7/plans/M1_bench/before/Q9.txt": {
+    "mtime": 1793012205.2240014,
+    "seen": 1793016655.6837425,
+    "ast_hash": "4275d1515d8b342470fe151a4e5555d3",
+    "semantic_hash": "4275d1515d8b342470fe151a4e5555d3"
+  },
+  "project_osm_map/docs/v0.7/plans/M1_db_base.md": {
+    "mtime": 1793016586.4276013,
+    "seen": 1793016655.6837425,
+    "ast_hash": "029f33ad2eed25303b8206259b6450ed",
+    "semantic_hash": "029f33ad2eed25303b8206259b6450ed"
   }
 }
